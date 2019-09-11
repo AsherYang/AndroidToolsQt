@@ -24,6 +24,11 @@ void MainWindow::resizeUi() {
 
 void MainWindow::initUi() {
     setWindowTitle("AndroidTools");
+    // local pointer variable
+    QMenu *menuView;
+    QMenu *menuTools;
+    QMenu *menuSettings;
+
     // container Widget
     logKeyword = new LogKeyword(this);
 
@@ -43,6 +48,9 @@ void MainWindow::initUi() {
 
 // loadLogKeyword window
 void MainWindow::openLogKeywordView() {
+    if (!logKeyword) {
+        return;
+    }
     logKeyword->setEdit(logKeyword->loadKeyword());
     stackedWidget->addWidget(logKeyword);
     stackedWidget->setCurrentWidget(logKeyword);
@@ -58,19 +66,6 @@ MainWindow::~MainWindow()
     if (logKeyword) {
         delete logKeyword;
         logKeyword= nullptr;
-    }
-
-    if (menuView) {
-        delete menuView;
-        menuView= nullptr;
-    }
-    if (menuTools) {
-        delete menuTools;
-        menuTools= nullptr;
-    }
-    if (menuSettings) {
-        delete menuSettings;
-        menuSettings= nullptr;
     }
 
     delete ui;

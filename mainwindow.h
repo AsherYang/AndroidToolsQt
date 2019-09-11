@@ -34,9 +34,6 @@ private:
     QStackedWidget *stackedWidget;
     LogKeyword *logKeyword;
     QMenuBar *menuBar;
-    QMenu *menuView;
-    QMenu *menuTools;
-    QMenu *menuSettings;
     QAction *logKeywordAction;
 };
 
