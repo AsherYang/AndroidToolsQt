@@ -2,14 +2,14 @@
 #define STRUTIL_H
 
 #include <string>
-#include "vector"
+#include <vector>
 
 using namespace std;
 
-class strutil
+class StrUtil
 {
 public:
-    strutil();
+    StrUtil();
     vector<string> split(const string &str, const string &delim);
     void replace_all(string &str, const string &old_value, const string &new_value);
 };

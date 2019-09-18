@@ -6,10 +6,10 @@
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
-    centralWidget(new QWidget(this)),
-    mainLayout(new QVBoxLayout(this)),
-    stackedWidget(new QStackedWidget(this)),
-    menuBar(new QMenuBar(this))
+    centralWidget(new QWidget()),
+    mainLayout(new QVBoxLayout()),
+    stackedWidget(new QStackedWidget()),
+    menuBar(new QMenuBar())
 {
     ui->setupUi(this);
     resizeUi();
@@ -30,15 +30,20 @@ void MainWindow::initUi() {
     QMenu *menuSettings;
 
     // container Widget
-    logKeyword = new LogKeyword(this);
 
+    // menuBar
     menuView = menuBar->addMenu("&View");
     menuTools = menuBar->addMenu("&Tools");
     menuSettings = menuBar->addMenu("&Setting");
 
     logKeywordAction = new QAction("Keyword");
+    logKeywordAction->connect(logKeywordAction, SIGNAL(triggered()), this, SLOT(openLogKeywordView()));
+
+    copyFileAction = new QAction("copyFile");
+    copyFileAction->connect(copyFileAction, SIGNAL(triggered()), this, SLOT(openCopyFileView()));
+
     menuView->addAction(logKeywordAction);
-    connect(logKeywordAction, SIGNAL(triggered()), SLOT(openLogKeywordView()));
+    menuTools->addAction(copyFileAction);
 
     mainLayout->addWidget(stackedWidget);
     centralWidget->setLayout(mainLayout);
@@ -48,29 +53,54 @@ void MainWindow::initUi() {
 
 // loadLogKeyword window
 void MainWindow::openLogKeywordView() {
-    if (!logKeyword) {
-        return;
+    if (logKeyword) {
+        delete logKeyword;
+        logKeyword = nullptr;
+        //qDebug() << "openLogKeywordView twice, delete first." << endl;
     }
+    logKeyword = new LogKeyword();
     logKeyword->setEdit(logKeyword->loadKeyword());
     stackedWidget->addWidget(logKeyword);
     stackedWidget->setCurrentWidget(logKeyword);
+}
+
+// copyfile window
+void MainWindow::openCopyFileView() {
+    if (copyFile) {
+        delete copyFile;
+        copyFile = nullptr;
+        //qDebug() << "openCopyFileView twice, delete first." << endl;
+    }
+    copyFile = new CopyFile();
+    stackedWidget->addWidget(copyFile);
+    stackedWidget->setCurrentWidget(copyFile);
 }
 
 MainWindow::~MainWindow()
 {
     if (logKeywordAction) {
         delete logKeywordAction;
-        logKeywordAction= nullptr;
+        logKeywordAction = nullptr;
     }
 
     if (logKeyword) {
         delete logKeyword;
-        logKeyword= nullptr;
+        logKeyword = nullptr;
     }
 
-    delete ui;
+    if (copyFileAction) {
+        delete copyFileAction;
+        copyFileAction = nullptr;
+    }
+
+    if (copyFile) {
+        delete copyFile;
+        copyFile = nullptr;
+    }
+
     delete menuBar;
-    delete mainLayout;
     delete stackedWidget;
+    delete mainLayout;
     delete centralWidget;
+    delete ui;
 }

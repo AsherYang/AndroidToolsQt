@@ -5,10 +5,10 @@
 
 LogKeyword::LogKeyword(QMainWindow *parent) :
     QMainWindow (parent),
-    centralWidget(new QWidget(this)),
-    mainLayout(new QVBoxLayout(this)),
-    searchEdit(new QLineEdit(this)),
-    edit(new QTextEdit(this))
+    centralWidget(new QWidget()),
+    mainLayout(new QVBoxLayout()),
+    searchEdit(new QLineEdit()),
+    edit(new QTextEdit())
 {
     initUi();
 }
@@ -43,7 +43,7 @@ QString LogKeyword::loadKeyword()
     getline(inFile, originalData);
     // close file.
     inFile.close();
-    strutil strUtil;
+    StrUtil strUtil;
     filterList = strUtil.split(originalData, "#@$");
     // qDebug() << filterList.size() << endl;
     strUtil.replace_all(originalData, "#@$", "\n");

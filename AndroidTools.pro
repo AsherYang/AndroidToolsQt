@@ -47,3 +47,4 @@ RC_ICONS = logo.ico
 include(./settings/settings.pri)
 include(./logkeyword/log_keyword.pri)
 include(./utils/utils.pri)
+include(./copyfile/copy_file.pri)

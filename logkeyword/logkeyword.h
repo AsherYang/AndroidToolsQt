@@ -32,10 +32,10 @@ private slots:
 
 private:
     Ui::LogKeyword *ui;
-    QWidget *centralWidget;
-    QVBoxLayout *mainLayout;
-    QLineEdit   *searchEdit;
-    QTextEdit   *edit;
+    QWidget *centralWidget = nullptr;
+    QVBoxLayout *mainLayout = nullptr;
+    QLineEdit   *searchEdit = nullptr;
+    QTextEdit   *edit = nullptr;
     vector<string> filterList;
     const string default_dir_path = "d:\\python_demo\\qt5\\logAnalytics\\dist\\";
     const string default_file_path = default_dir_path + "filter_config";

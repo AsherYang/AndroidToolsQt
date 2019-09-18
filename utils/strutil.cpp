@@ -1,19 +1,20 @@
 #include "strutil.h"
 
-strutil::strutil()
+StrUtil::StrUtil()
 {
 
 }
 
 /**
- * see {https://blog.csdn.net/glmushroom/article/details/80690881}
+ * 字符串分割
+ * see {https://blog.csdn.net/glmushroom/article/details/80690881} 
  *
  * @brief strutil::split
  * @param str
  * @param delim
  * @return
  */
-vector<string> strutil::split(const string &str, const string &delim)
+vector<string> StrUtil::split(const string &str, const string &delim)
 {
     vector<string> res;
     if ("" == str) return res;
@@ -33,6 +34,7 @@ vector<string> strutil::split(const string &str, const string &delim)
 }
 
 /**
+ * 字符串替换
  * see {https://blog.csdn.net/qq_34392405/article/details/79699606}
  *
  * @brief strutil::replace_all
@@ -40,7 +42,7 @@ vector<string> strutil::split(const string &str, const string &delim)
  * @param old_value
  * @param new_value
  */
-void strutil::replace_all(string &str, const string &old_value, const string &new_value)
+void StrUtil::replace_all(string &str, const string &old_value, const string &new_value)
 {
     string::size_type pos = str.find(old_value), t_size = old_value.size(), r_size = new_value.size();
     while (pos != std::string::npos) {

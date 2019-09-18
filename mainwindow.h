@@ -7,6 +7,7 @@
 #include <QMenuBar>
 
 #include "logkeyword/logkeyword.h"
+#include "copyfile/copyfile.h"
 
 namespace Ui {
 class MainWindow;
@@ -22,6 +23,7 @@ public:
 
 private slots:
     void openLogKeywordView();
+    void openCopyFileView();
 
 private:
     void resizeUi();
@@ -29,12 +31,14 @@ private:
 
 private:
     Ui::MainWindow *ui;
-    QWidget *centralWidget;
-    QVBoxLayout *mainLayout;
-    QStackedWidget *stackedWidget;
-    LogKeyword *logKeyword;
-    QMenuBar *menuBar;
-    QAction *logKeywordAction;
+    QWidget *centralWidget = nullptr;
+    QVBoxLayout *mainLayout = nullptr;
+    QStackedWidget *stackedWidget = nullptr;
+    LogKeyword *logKeyword = nullptr;
+    QMenuBar *menuBar = nullptr;
+    QAction *logKeywordAction = nullptr;
+    CopyFile *copyFile = nullptr;
+    QAction *copyFileAction = nullptr;
 };
 
 #endif // MAINWINDOW_H
