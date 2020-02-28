@@ -1,0 +1,5 @@
+------------get cplc start-------------
+
+		--0x0D  Manual Configuration Chip Succeed
+
+		--0x0D  Manual Configuration Chip Succeed

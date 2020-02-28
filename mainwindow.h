@@ -8,6 +8,7 @@
 
 #include "logkeyword/logkeyword.h"
 #include "copyfile/copyfile.h"
+#include "nfc/nfc.h"
 
 namespace Ui {
 class MainWindow;
@@ -24,6 +25,7 @@ public:
 private slots:
     void openLogKeywordView();
     void openCopyFileView();
+    void openNfcView();
 
 private:
     void resizeUi();
@@ -39,6 +41,8 @@ private:
     QAction *logKeywordAction = nullptr;
     CopyFile *copyFile = nullptr;
     QAction *copyFileAction = nullptr;
+    Nfc *nfc = nullptr;
+    QAction *nfcAction = nullptr;
 };
 
 #endif // MAINWINDOW_H

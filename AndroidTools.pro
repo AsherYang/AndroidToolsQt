@@ -8,7 +8,11 @@ QT       += core gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
+# AndroidTools For me(main.cpp use MainWindow.cpp)
 TARGET = AndroidTools
+
+# NfcTools For others(main.cpp use MinWindow.cpp)
+#TARGET = NfcTools
 TEMPLATE = app
 
 # The following define makes your compiler emit warnings if you use
@@ -24,12 +28,16 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 CONFIG += c++11
 
+LIBS += User32.LIB
+
 SOURCES += \
         main.cpp \
-        mainwindow.cpp
+        mainwindow.cpp \
+        minwindow.cpp
 
 HEADERS += \
-        mainwindow.h
+        mainwindow.h \
+        minwindow.h
 
 FORMS += \
         mainwindow.ui
@@ -40,7 +48,8 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 DISTFILES += \
-    README.md
+    README.md \
+    copy.bat
 
 RC_ICONS = logo.ico
 
@@ -48,3 +57,10 @@ include(./settings/settings.pri)
 include(./logkeyword/log_keyword.pri)
 include(./utils/utils.pri)
 include(./copyfile/copy_file.pri)
+#include(./translate/translate.pri)
+#include(./adboperate/adb_operate.pri)
+#include(./baseinfo/base_info.pri)
+include(./nfc/nfc.pri)
+
+#RESOURCES += \
+#    res.qrc

@@ -1,4 +1,4 @@
-#include "fileutil.h"
+﻿#include "fileutil.h"
 
 #include <QDebug>
 
@@ -230,5 +230,38 @@ bool FileUtil::copyFile(const string &srcDir, const string &destDir, const strin
         result = QFile::copy(srcFilePath, destFilePath);
     }
     return result;
+}
+
+// {@see https://blog.csdn.net/ymc0329/article/details/7975654}
+bool FileUtil::copyDir(const string &srcDir, const string &destDir, bool coverFileIfExist) {
+    QString qSrcDir = QDir::toNativeSeparators(QString::fromStdString(srcDir));
+    QString qDestDir = QDir::toNativeSeparators(QString::fromStdString(destDir));
+    QDir sourceDir(qSrcDir);
+    QDir targetDir(qDestDir);
+    if (!targetDir.exists()) {
+        if (!targetDir.mkdir(targetDir.absolutePath())) {
+            return false;
+        }
+    }
+
+    QFileInfoList fileList = sourceDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot);
+    foreach (QFileInfo file, fileList) {
+        if (file.isDir()) {
+            if (!copyDir(file.absolutePath().toStdString(), targetDir.filePath(file.fileName()).toStdString(), coverFileIfExist)) {
+                return false;
+            }
+        } else {
+            // remove first if coverFileIfExist
+            if (coverFileIfExist && targetDir.exists(file.fileName())) {
+                targetDir.remove(file.fileName());
+            }
+            // copy
+            // qDebug() << "copy srcFilePath" << file.filePath() << ",destFilePath" << targetDir.filePath(file.fileName());
+            if (!QFile::copy(file.filePath(), targetDir.filePath(file.fileName()))) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 

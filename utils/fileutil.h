@@ -1,4 +1,4 @@
-#ifndef FILEUTIL_H
+﻿#ifndef FILEUTIL_H
 #define FILEUTIL_H
 #include <string>
 #include <vector>
@@ -23,6 +23,7 @@ public:
     bool removeDirs(const string &dir);                     // 删除文件夹
     bool isFileOrDirExist(const string &filePath);          // 判断文件或文件夹是否存在
     bool copyFile(const string &srcDir, const string &destDir, const string &origSrcDir, const string &copyFileName);    // 将文件从源目录拷贝到目标目录下
+    bool copyDir(const string &srcDir, const string &destDir, bool coverFileIfExist);       // 拷贝文件夹
 };
 
 /////////////////////////////////////////////////////////////////////

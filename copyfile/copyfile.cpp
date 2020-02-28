@@ -1,7 +1,9 @@
-#include "copyfile.h"
+﻿#include "copyfile.h"
 #include "utils/fileutil.h"
 #include <QDesktopServices>
 #include <QUrl>
+
+#pragma execution_character_set("utf-8")
 
 using namespace std;
 

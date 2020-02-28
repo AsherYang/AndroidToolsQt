@@ -1,7 +1,9 @@
-#include "logkeyword.h"
+﻿#include "logkeyword.h"
 #include <iostream>
 #include <fstream>
 #include "../utils/strutil.h"
+
+#pragma execution_character_set("utf-8")
 
 LogKeyword::LogKeyword(QMainWindow *parent) :
     QMainWindow (parent),

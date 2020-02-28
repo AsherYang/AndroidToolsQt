@@ -39,10 +39,14 @@ void MainWindow::initUi() {
     logKeywordAction = new QAction("Keyword");
     logKeywordAction->connect(logKeywordAction, SIGNAL(triggered()), this, SLOT(openLogKeywordView()));
 
-    copyFileAction = new QAction("copyFile");
+    copyFileAction = new QAction("CopyFile");
     copyFileAction->connect(copyFileAction, SIGNAL(triggered()), this, SLOT(openCopyFileView()));
 
+    nfcAction = new QAction("Nfc");
+    nfcAction->connect(nfcAction, SIGNAL(triggered()), this, SLOT(openNfcView()));
+
     menuView->addAction(logKeywordAction);
+    menuView->addAction(nfcAction);
     menuTools->addAction(copyFileAction);
 
     mainLayout->addWidget(stackedWidget);
@@ -76,6 +80,17 @@ void MainWindow::openCopyFileView() {
     stackedWidget->setCurrentWidget(copyFile);
 }
 
+// open nfc window
+void MainWindow::openNfcView() {
+    if (nfc) {
+        delete nfc;
+        nfc = nullptr;
+    }
+    nfc = new Nfc();
+    stackedWidget->addWidget(nfc);
+    stackedWidget->setCurrentWidget(nfc);
+}
+
 MainWindow::~MainWindow()
 {
     if (logKeywordAction) {
@@ -96,6 +111,16 @@ MainWindow::~MainWindow()
     if (copyFile) {
         delete copyFile;
         copyFile = nullptr;
+    }
+
+    if (nfcAction) {
+        delete nfcAction;
+        nfcAction = nullptr;
+    }
+
+    if (nfc) {
+        delete nfc;
+        nfc = nullptr;
     }
 
     delete menuBar;
