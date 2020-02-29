@@ -1,0 +1,40 @@
+#########################################################
+# Global datastructures to support APSD
+
+/set-var -g APSD_AID "N/A"
+
+###########################################################
+# APSD keys
+# set the public APSD key for CERT.AP.AUT generation and RGK decrpytion
+/set-var -g PK.AP.AUT_MODULUS  "PK.AP.AUT_MODULUS"
+/set-var -g PK.AP.AUT_EXPONENT "PK.AP.AUT_EXPONENT"
+/set-var -g SK.AP.AUT_MODULUS  "SK.AP.AUT_MODULUS"
+/set-var -g SK.AP.AUT_EXPONENT "SK.AP.AUT_EXPONENT"
+
+# set the public APSD key for CERT.AP.CT generation
+/set-var -g PK.AP.CT_MODULUS  "PK.AP.CT_MODULUS"
+/set-var -g PK.AP.CT_EXPONENT "PK.AP.CT_EXPONENT"
+/set-var -g SK.AP.CT_MODULUS  "SK.AP.CT_MODULUS"
+/set-var -g SK.AP.CT_EXPONENT "SK.AP.CT_EXPONENT"
+
+#set the AP Symmetric key
+/set-var -g KS.AP.CT "KS.AP.CT"
+
+
+###########################################################
+# Global variables for CERT.AP.CTH
+# fill these when you want to create a CERT.AP.CTH. The will be set when a CERT.AP.CTH is parsed, verfied and PK.AP.AUT/PK.AP.CT is recovered
+/set-var -g CERT.AP.SERIAL "N/A"
+/set-var -g CERT.AP.CAID "N/A"
+/set-var -g CERT.AP.SUBJID "N/A"
+/set-var -g CERT.AP.KEYUSE "N/A"
+#keep EFFECTIVEDATE on "N/A" when not used
+/set-var -g CERT.AP.EFFECTIVEDATE "N/A"
+/set-var -g CERT.AP.EXPIRATIONDATE "N/A"
+#keep DISCRDATA on "N/A" when not used
+/set-var -g CERT.AP.DISCRDATA "N/A"
+
+#these values will be calculated or parsed
+/set-var -g CERT.AP.TAG "N/A"
+/set-var -g CERT.AP.SIGNATURE "N/A"
+/set-var -g CERT.AP.REMAINDER "N/A"

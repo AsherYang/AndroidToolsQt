@@ -10,11 +10,8 @@
 Nfc::Nfc(QWidget *parent) :
     QWidget(parent),
     mainLayout(new QVBoxLayout()),
-    jcshellBatPathLayout(new QHBoxLayout()),
     serverAuthKeyPathLayout(new QHBoxLayout()),
     operBtnsLayout(new QHBoxLayout()),
-    jcshellBatPathEdit(new QLineEdit()),
-    jcshellBatPathBtn(new QPushButton()),
     serverAuthKeyPathEdit(new QLineEdit()),
     serverAuthKeyPathBtn(new QPushButton()),
     logEdit(new QTextEdit()),
@@ -25,6 +22,7 @@ Nfc::Nfc(QWidget *parent) :
     progressBar(new QProgressBar()) {
 
     initUi();
+    initBatPath();
 }
 
 /**
@@ -48,11 +46,6 @@ void Nfc::initUi() {
     serverAuthKeyPathBtn->connect(serverAuthKeyPathBtn, SIGNAL(clicked()), this, SLOT(serverAuthKeyBtnClick()));
     serverAuthKeyPathEdit->setTextMargins(10, 0, 10, 0);
 
-    jcshellBatPathBtn->setText(QString::fromUtf8("设置Jcshell脚本"));
-    jcshellBatPathBtn->setMinimumHeight(25);
-    jcshellBatPathBtn->connect(jcshellBatPathBtn, SIGNAL(clicked()), this, SLOT(jcshellBatPathBtnClick()));
-    jcshellBatPathEdit->setTextMargins(10, 0, 10, 0);
-
     QSizePolicy policy = logEdit->sizePolicy();
     policy.setVerticalStretch(1);
     logEdit->setSizePolicy(policy);
@@ -63,9 +56,6 @@ void Nfc::initUi() {
     serverAuthKeyPathLayout->addWidget(serverAuthKeyPathEdit);
     serverAuthKeyPathLayout->addWidget(serverAuthKeyPathBtn);
 
-    jcshellBatPathLayout->addWidget(jcshellBatPathEdit);
-    jcshellBatPathLayout->addWidget(jcshellBatPathBtn);
-
 //    getCplcBtn->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
 
     operBtnsLayout->addWidget(progressBar);
@@ -73,11 +63,18 @@ void Nfc::initUi() {
     operBtnsLayout->addWidget(getCplcBtn);
     operBtnsLayout->addWidget(writeAuthKeyBtn);
     operBtnsLayout->addWidget(checkAuthKeyBtn);
-    mainLayout->addLayout(jcshellBatPathLayout);
     mainLayout->addLayout(serverAuthKeyPathLayout);
     mainLayout->addWidget(logEdit);
     mainLayout->addLayout(operBtnsLayout);
     setLayout(mainLayout);
+}
+
+/**
+ * @brief Nfc::initBatPath
+ */
+void Nfc::initBatPath() {
+    jcshellBatPath = QDir::toNativeSeparators(QDir::currentPath().replace("\\", "/")).append("/jcshell/jcshell.bat");
+    jcshellDirPath = QDir::toNativeSeparators(QDir::currentPath().replace("\\", "/")).append("/jcshell/");
 }
 
 /**
@@ -96,10 +93,6 @@ void Nfc::showLog(QString log) {
  * get cplc btn click slotOL
  */
 void Nfc::getCplcBtnClick() {
-    if (!checkJcshell()) {
-        showLog(QString::fromUtf8("请先设置Jcshell脚本路径"));
-        return;
-    }
     //qDebug() << "---getCplcBtnClick---";
     //1_get_cplc.bat中的语句全为调用次级vbs脚本，再由vbs调用子bat脚本，从而达到隐藏窗口的目的
     showLog(QString::fromUtf8("正在获取CPLC，请稍后"));
@@ -119,23 +112,6 @@ void Nfc::getCplcBtnClick() {
     fileWatcher->addPath(workPath);
     //qDebug() << "start file watcher:" << workPath;
 }
-
-/*
-void Nfc::batOperateSuccess(const QString &resultPath) {
-    qDebug() << "batOperateSuccess:" << resultPath;
-    if (resultPath.isEmpty()) {
-        return;
-    }
-    if (resultPath.contains("logCplcSuccess")) {
-        batGetCplcSuccess();
-        return;
-    }
-    if (resultPath.contains("logAuthKeySuccess")) {
-        batAuthKeySuccess();
-        return;
-    }
-}
-*/
 
 /**
  * @brief Nfc::batGetCplcSuccess
@@ -199,95 +175,6 @@ void Nfc::batGetCplcSuccess() {
 }
 
 /**
- * @brief Nfc::jcshellBatPathBtnClick
- */
-void Nfc::jcshellBatPathBtnClick() {
-    jcshellBatPath = QFileDialog::getOpenFileName(nullptr, nullptr, QString("D:\\"), "(*.bat)");
-    jcshellBatPathEdit->setText(jcshellBatPath);
-    if (jcshellBatPath.isEmpty()) {
-        showLog(QString::fromUtf8("请重新选择Jcshell脚本"));
-        jcshellBatPath.clear();
-        jcshellDirPath.clear();
-        return;
-    }
-    QFile jcshellFile(jcshellBatPath);
-    if (!jcshellFile.exists() || !jcshellFile.fileName().contains("jcshell")) {
-        showLog(QString::fromUtf8("请选择正确的Jcshell脚本"));
-        jcshellBatPath.clear();
-        jcshellDirPath.clear();
-        jcshellFile.close();
-        return;
-    }
-    FileUtil fileUtil;
-    jcshellDirPath = QDir::toNativeSeparators(fileUtil.getFileDir(jcshellBatPath.toStdString())).replace("\\", "/");
-
-    QString destBatFilePath;
-    destBatFilePath.append(jcshellDirPath).append("/batForTools/");
-    QString destJcshellBatPath;
-    destJcshellBatPath.append(jcshellDirPath).append("/scripts/");
-    // qDebug() << "currentPath:" << QDir::currentPath();
-    QString srcBatFilePath;
-    srcBatFilePath.append(QDir::toNativeSeparators(QDir::currentPath()).replace("\\", "/")).append("/bat/");
-    QString srcJcshellBatPath;
-    srcJcshellBatPath.append(QDir::toNativeSeparators(QDir::currentPath()).replace("\\", "/")).append("/script/");
-
-    QDir destBatDir(destBatFilePath);
-    QDir destJcshellBatDir(destJcshellBatPath);
-    //int destBatSize = destBatDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).size();
-    //int destJcshellBatSize = destJcshellBatDir.entryInfoList(QDir::AllEntries | QDir::NoDotAndDotDot).size();
-    //qDebug() << "bat exit:" << destBatDir.exists() << " ,jcshell  exist:" << destJcshellBatDir.exists() << " ,bat size:" << destBatSize << " ,jcshell size:" << destJcshellBatSize;
-
-    //if (destBatSize < 11 || destJcshellBatSize < 5) {
-        if (cpBatFileThread) {
-            QObject::disconnect(cpBatFileThread, SIGNAL(copySuccess()), this, SLOT(copyFileSuccess()));
-            //qDebug() << "检查是否发送了信号槽。";
-            delete cpBatFileThread;
-            cpBatFileThread = nullptr;
-        }
-        //qDebug() << "srcBatFilePath:" << srcBatFilePath << ",destBatFilePath:" << destBatFilePath;
-        cpBatFileThread = new CpFilethread(srcBatFilePath, destBatFilePath, true);
-        QObject::connect(cpBatFileThread, SIGNAL(copySuccess()), this, SLOT(copyFileSuccess()));
-        cpBatFileThread->start();
-
-        if (cpJcshellThread) {
-            QObject::disconnect(cpJcshellThread, SIGNAL(copySuccess()), this, SLOT(copyFileSuccess()));
-            //qDebug() << "检查是否发送了信号槽。";
-            delete cpJcshellThread;
-            cpJcshellThread = nullptr;
-        }
-        //qDebug() << "srcJcshellBatPath:" << srcJcshellBatPath << ",destJcshellBatPath:" << destJcshellBatPath;
-        cpJcshellThread = new CpFilethread(srcJcshellBatPath, destJcshellBatPath, true);
-        QObject::connect(cpJcshellThread, SIGNAL(copySuccess()), this, SLOT(copyFileSuccess()));
-        cpJcshellThread->start();
-
-        showLog(QString::fromUtf8("正在配置环境，请稍后"));
-    //}
-    jcshellFile.close();
-}
-
-/**
- * @brief Nfc::checkJcshell
- * check jcshell bat exist
- * @return true: exist
- *         false: not exist.
- */
-bool Nfc::checkJcshell() {
-    return !jcshellBatPath.isEmpty();
-}
-
-/**
- * @brief Nfc::copyFileSuccess
- * thread copy file success slot
- */
-void Nfc::copyFileSuccess() {
-    copyFileTimes++;
-    if (copyFileTimes >= 2) {
-        showLog(QString::fromUtf8("环境准备完成。"));
-        copyFileTimes = 0;
-    }
-}
-
-/**
  * @brief Nfc::serverAuthKeyBtnClick
  */
 void Nfc::serverAuthKeyBtnClick() {
@@ -317,10 +204,6 @@ bool Nfc::checkServerAuthKeyPath() {
  * @brief Nfc::writeAuthKeyBtnClick
  */
 void Nfc::writeAuthKeyBtnClick() {
-    if (!checkJcshell()) {
-        showLog(QString::fromUtf8("请先设置Jcshell脚本路径"));
-        return;
-    }
     if (!checkServerAuthKeyPath()) {
         showLog(QString::fromUtf8("请先导入密钥文件"));
         return;
@@ -533,10 +416,6 @@ void Nfc::batAuthKeySuccess() {
  * @brief Nfc::checkAuthKeyBtnClick
  */
 void Nfc::checkAuthKeyBtnClick() {
-    if (!checkJcshell()) {
-        showLog(QString::fromUtf8("请先设置Jcshell脚本路径"));
-        return;
-    }
     // we delete log.txt first, because jchsell check command is the same.
     QString logFilePath;
     logFilePath.append(jcshellDirPath).append("/batForTools/log.txt");
@@ -655,8 +534,6 @@ Nfc::~Nfc() {
     }
     delete progressBar;
     delete fileWatcher;
-    delete jcshellBatPathBtn;
-    delete jcshellBatPathEdit;
     delete serverAuthKeyPathBtn;
     delete serverAuthKeyPathEdit;
     delete logEdit;
@@ -664,7 +541,6 @@ Nfc::~Nfc() {
     delete writeAuthKeyBtn;
     delete checkAuthKeyBtn;
     delete serverAuthKeyPathLayout;
-    delete jcshellBatPathLayout;
     delete operBtnsLayout;
     delete mainLayout;
 }

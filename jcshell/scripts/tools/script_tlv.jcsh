@@ -1,0 +1,283 @@
+# { object tags 
+    /set-var -g TAG_Aid_4f                                            4f    # var, 5-16
+    /set-var -g TAG_ApplicationLabel_50                               50    # var
+    /set-var -g TAG_FciTemplate_6f                                    6f    # var
+    /set-var -g TAG_DfName_84                                         84    # var
+    /set-var -g TAG_FciProprietaryTemplate_a5                         a5    # var
+    /set-var -g TAG_FciIssuerDiscretionaryTemplate_bf0c             bf0c    # var
+    /set-var -g TAG_AmountAuthorized_9f02                           9f02    # 6
+    /set-var -g TAG_AmountOther_9f03                                9f03    # 6
+    /set-var -g TAG_AuthorisationResponsecode_8a                      8a    # 2
+    /set-var -g TAG_CardVerificationResults_9f52                    9f52    # 6
+    /set-var -g TAG_Cdol1_8c                                          8c    # var
+    /set-var -g TAG_Cdol2_8d                                          8d    # 18|24
+    /set-var -g TAG_DataAuthenticationCode_9f45                     9f45    # 2
+    /set-var -g TAG_Ddol_9f49                                       9f49    # 3
+    /set-var -g TAG_Drdol_9f51                                      9f51    # 3
+    /set-var -g TAG_DsInputT_df60                                   df60    # 8
+    /set-var -g TAG_DsDigestH_df61                                  df61    # 8
+    /set-var -g TAG_DsOdsInfo_df62                                  df62    # 1
+    /set-var -g TAG_DsOdsTerm_df63                                  df63    # var, <=160
+    /set-var -g TAG_Dsdol_9f5b                                      9f5b    # 13
+    /set-var -g TAG_DsRequestedOperatorId_9f5c                      9f5c    # 8
+    /set-var -g TAG_IccDynamicNumber_9f4c                           9f4c    # 8
+    /set-var -g TAG_IccDynamicNumberTerminal_9f4c                   9f4c    # 8
+    /set-var -g TAG_MerchantCustomData_9f7c                         9f7c    # 20
+    /set-var -g TAG_Pdol_9f38                                       9f38    # 3|6
+    /set-var -g TAG_IssuerAuthenticationData_91                       91    # 10
+    /set-var -g TAG_FileControlInformation_6f                         6f    # var, 10-252
+    /set-var -g TAG_DataStorageRecord_e5                              e5
+    /set-var -g TAG_EmvFormat2_77                                     77
+    /set-var -g TAG_IssuerApplicationData_9f10                      9f10    # var, (8)|(9)|18|20|26|28
+    /set-var -g TAG_ApplicationCryptogram_9f26                      9f26    # 8
+    /set-var -g TAG_CryptograminformationData_9f27                  9f27    # 1
+    /set-var -g TAG_ApplicationTransactionCounter_9f36              9f36    # 2
+    /set-var -g TAG_SignedDynamicAppliactionData_9f4b               9f4b    # length of IccPublicKeyModulus
+    /set-var -g TAG_TransactionLogEntry_9f4d                        9f4d
+    /set-var -g TAG_SomethingElse_9f5e                              9f5e
+    /set-var -g TAG_ApplicationCapabilityInformation_9f5d           9f5d
+    /set-var -g TAG_Cvc3track1_9f60                                 9f60
+    /set-var -g TAG_Cvc3track2_9f61                                 9f61
+    /set-var -g TAG_OperatorIdentifer_df01                          df01
+    /set-var -g TAG_DigestStatus_df02                               df02
+    /set-var -g TAG_Digest_df03                                     df03
+    /set-var -g TAG_SlotManagementControl_df04                      df04
+    /set-var -g TAG_Summary_df05                                    df05
+    /set-var -g TAG_OperatorDataSetCard_df06                        df06
+    /set-var -g TAG_Accumulator1amount_df3b                         df3b    # 6
+    /set-var -g TAG_Accumulator1controlContact_df11                 df11    # 1
+    /set-var -g TAG_Accumulator1controlContactless_df12             df12    # 1
+    /set-var -g TAG_Accumulator1currencyCode_c9                       c9    # 2
+    /set-var -g TAG_Accumulator1currencyConvertionTable_d1            d1    # 25
+    /set-var -g TAG_Accumulator1cvrDependencyDataContact_df28       df28    # 3
+    /set-var -g TAG_Accumulator1cvrDependencyDataContactless_df29   df29    # 3
+    /set-var -g TAG_Accumulator1lowerLimit_ca                         ca    # 6
+    /set-var -g TAG_Accumulator1upperLimit_cb                         cb    # 6
+    /set-var -g TAG_Accumulator2amount_df13                         df13    # 6
+    /set-var -g TAG_Accumulator2controlContact_df14                 df14    # 1
+    /set-var -g TAG_Accumulator2controlContactless_df15             df15    # 1
+    /set-var -g TAG_Accumulator2currencyCode_df16                   df16    # 2
+    /set-var -g TAG_Accumulator2currencyConvertionTable_df17        df17    # 25
+    /set-var -g TAG_Accumulator2cvrDependencyDataContact_df2a       df2a    # 3
+    /set-var -g TAG_Accumulator2cvrDependencyDataContactless_df2b   df2b    # 3
+    /set-var -g TAG_Accumulator2lowerLimit_df18                     df18    # 6
+    /set-var -g TAG_Accumulator2upperLimit_df19                     df19    # 6
+    /set-var -g TAG_AdditionalCheckTable_d3                           d3    # 18
+    /set-var -g TAG_ApplicationControlContact_d5                      d5    # 6
+    /set-var -g TAG_ApplicationControlContactless_d7                  d7    # 6
+    /set-var -g TAG_ApplicationFileLocator_94                         94    # var
+    /set-var -g TAG_ApplicationFileLocatorContact_94                  94    # var
+    /set-var -g TAG_ApplicationFileLocatorContactless_d9              d9    # var
+    /set-var -g TAG_ApplicationLifeCycleData_9f7e                   9f7e    # 48
+    /set-var -g TAG_CardIssuerActionCodeContactDecline_c3             c3    # 3
+    /set-var -g TAG_CardIssuerActionCodeContactDefault_c4             c4    # 3
+    /set-var -g TAG_CardIssuerActionCodeContactOnline_c5              c5    # 3
+    /set-var -g TAG_CardIssuerActionCodeContactlessDecline_cf         cf    # 3
+    /set-var -g TAG_CardIssuerActionCodeContactlessDefault_cd         cd    # 3
+    /set-var -g TAG_CardIssuerActionCodeContactlessOnline_ce          ce    # 3
+    /set-var -g TAG_Cdol1relatedDataLength_c7                         c7    # 1
+    /set-var -g TAG_Counter1controlContact_df1a                     df1a    # 1
+    /set-var -g TAG_Counter1controlContactless_df1b                 df1b    # 1
+    /set-var -g TAG_Counter1cvrDependencyDataContact_df2c           df2c    # 3
+    /set-var -g TAG_Counter1cvrDependencyDataContactless_df2d       df2d    # 3
+    /set-var -g TAG_Counter1lowerLimit_9f14                         9f14    # 1
+    /set-var -g TAG_Counter1number_df1c                             df1c    # 1
+    /set-var -g TAG_Counter1upperLimit_9f23                         9f23    # 1
+    /set-var -g TAG_Counter2controlContact_df1d                     df1d    # 1
+    /set-var -g TAG_Counter2controlContactless_df1e                 df1e    # 1
+    /set-var -g TAG_Counter2cvrDependencyDataContact_df2e           df2e    # 3
+    /set-var -g TAG_Counter2cvrDependencyDataContactless_df2f       df2f    # 3
+    /set-var -g TAG_Counter2lowerLimit_df1f                         df1f    # 1
+    /set-var -g TAG_Counter2number_df20                             df20    # 1
+    /set-var -g TAG_Counter2upperLimit_df21                         df21    # 1
+    /set-var -g TAG_CrmCountryCode_c8                                 c8    # 2
+    /set-var -g TAG_CvrIssuerDiscretionaryDataContact_df3c          df3c    # 1
+    /set-var -g TAG_CvrIssuerDiscretionaryDataContactless_df3d      df3d    # 1
+    /set-var -g TAG_DefaultArpcResponseCode_d6                        d6    # 2
+    /set-var -g TAG_DsManagementcontrol_df41                        df41    # 1
+    /set-var -g TAG_InterfaceEnablingSwitch_df30                    df30    # 1
+    /set-var -g TAG_LogDataTable_de                                   de    # 9
+    /set-var -g TAG_LogFormat_9f4f                                  9f4f    # var
+    /set-var -g TAG_MtaCurrencyCode_df24                            df24    # 2
+    /set-var -g TAG_MtaCvmContact_df22                              df22    # 6
+    /set-var -g TAG_MtaCvmContactless_df23                          df23    # 6
+    /set-var -g TAG_MtaNoCvmContact_df25                            df25    # 6
+    /set-var -g TAG_MtaNoCvmContactless_df26                        df26    # 6
+    /set-var -g TAG_NumberOfDaysOffLineLimit_df27                   df27    # 2
+    /set-var -g TAG_OfflineAccumulatorBalance1_9f50                 9f50    # 6
+    /set-var -g TAG_OfflineAccumulatorBalance2_9f58                 9f58    # 6
+    /set-var -g TAG_OfflineCounterBalance1_9f7a                     9f7a    # 1
+    /set-var -g TAG_OfflineCounterBalance2_9f59                     9f59    # 1
+    /set-var -g TAG_PinTryCounter_9f17                              9f17    # 1
+    /set-var -g TAG_PinTryLimit_c6                                    c6    # 1
+    /set-var -g TAG_ReadRecordFilterContact_df3f                    df3f    # var
+    /set-var -g TAG_ReadRecordFilterContactless_df40                df40    # var
+    /set-var -g TAG_ProtectedDataEnvelop1_9f70                      9f70
+    /set-var -g TAG_ProtectedDataEnvelop2_9f71                      9f71
+    /set-var -g TAG_ProtectedDataEnvelop3_9f72                      9f72
+    /set-var -g TAG_ProtectedDataEnvelop4_9f73                      9f73
+    /set-var -g TAG_ProtectedDataEnvelop5_9f74                      9f74
+    /set-var -g TAG_SecurityLimitsStatusContact_df02                df02    # 1
+    /set-var -g TAG_SecurityLimitsStatusContactless_df35            df35    # 1
+    /set-var -g TAG_SecurityLimitsStatusCommon_df37                 df37    # 1
+    /set-var -g TAG_UnprotectedDataEnvelope1_9f75                   9f75
+    /set-var -g TAG_UnprotectedDataEnvelope2_9f76                   9f76
+    /set-var -g TAG_UnprotectedDataEnvelope3_9f77                   9f77
+    /set-var -g TAG_UnprotectedDataEnvelope4_9f78                   9f78
+    /set-var -g TAG_UnprotectedDataEnvelope5_9f79                   9f79
+    /set-var -g TAG_PdolRelatedData_83                                83    # 0|5|10|13
+    /set-var -g TAG_ApplicationInterchangeProfile_82                  82    # 2
+    /set-var -g TAG_ApplicationInterchangeProfileContact_82           82    # 2
+    /set-var -g TAG_ApplicationInterchangeProfileContactless_d8       d8
+    /set-var -g TAG_DsSlotManagementControl_9f6f                    9f6f    # 1
+    /set-var -g TAG_DsSlotAvailability_9f5f                         9f5f    # 1
+    /set-var -g TAG_DsUnpredictableNumber_9f7f                      9f7f    # 4
+    /set-var -g TAG_DsSummary1_9f7d                                 9f7d    # 8
+    /set-var -g TAG_DsOdsCard_9f54                                  9f54    # var
+    /set-var -g TAG_AcSessionKeyCounterLimitContact_df3a            df3a    # 2
+    /set-var -g TAG_AcSessionkeyCounterLimitContactless_df34        df34    # 2
+    /set-var -g TAG_IvCvc3track1Contact_df38                        df38    # 2
+    /set-var -g TAG_IvCvc3track1Contactless_dc                        dc    # 2
+    /set-var -g TAG_IvCvc3track2Contact_df39                        df39    # 2
+    /set-var -g TAG_IvCvc3track2Contactless_dd                        dd    # 2
+    /set-var -g TAG_PinDeciphermentsErrorCounterLimit_df36          df36    # 2
+    /set-var -g TAG_SmiSessionkeyCounterLimitContact_df32           df32    # 2
+    /set-var -g TAG_SmiSessionkeyCounterLimitContactless_df33       df33    # 2
+    /set-var -g TAG_TerminalCountryCode_9f1a                        9f1a    # 2
+    /set-var -g TAG_TerminalType_9f35                               9f35    # 1
+    /set-var -g TAG_TerminalVerificationResult_95                     95    # 5
+    /set-var -g TAG_TransactionCurrencyCode_5f2a                    5f2a    # 2
+    /set-var -g TAG_TransactionDate_9a                                9a    # 3
+    /set-var -g TAG_TransactionTime_9f21                            9f21    # 3
+    /set-var -g TAG_TransactionType_9c                                9c    # 1
+    /set-var -g TAG_UnpredictableNumber_9f37                        9f37    # 4
+    /set-var -g TAG_UnpredictableNumberNumeric_9f6a                 9f6a    # 4
+    /set-var -g TAG_AdditionalTerminalCapabilities_9f40             9f40    # 2
+    /set-var -g TAG_CardVerificationMethodResults_9f34              9f34    # 3
+# }
+    
+DEFUN tlvGetHdrLength
+  /applet JCipher
+ 
+  /set-var obj $(pad -p NOPAD -b 1 ${argv[0];q})
+  /set-var hdrLen 4
+  /set-var len    0
+  
+  /set-var curPos 0
+  if $(/expr 0x${obj;s${curPos},2} & 0x1f) == 0x1f
+    /set-var hdrLen $(/expr ${hdrLen} + 2)
+    /set-var curPos $(/expr ${curPos} + 2)
+  end 
+  /set-var curPos $(/expr ${curPos} + 2)
+  
+  if $(/expr 0x${obj;s${curPos},2} & 0x80) == 0x80
+    /set-var len $(/expr 0x${obj;s${curPos},2} & 0x7f)  # length of length field
+    /set-var hdrLen $(/expr ${hdrLen} + ( 2 * ${len} ) )
+  end
+  
+  return ${hdrLen}
+END
+
+#
+# usage: tlvMakeObj tag value
+# 
+# Returns a constructed TLV object with given tag and payload
+#
+DEFUN tlvMakeObj
+  /applet JCipher
+  
+  /set-var tag $(pad -p NOPAD -b 1 ${argv[0];q})
+  /set-var value $(pad -p NOPAD -b 1 "${argv[1..]}")
+  
+  /set-var len $(/expr ${value;l} / 2)
+  if ${len} > 255
+    /set-var obj ${tag;q}82${len;h4}${value;q}
+  elseif ${len} > 127
+    /set-var obj ${tag;q}81${len;h2}${value;q}
+  else
+    /set-var obj ${tag;q}${len;h2}${value;q}
+  end
+  
+  return ${obj;q}
+END
+
+#
+# usage: tlvGetTag tlvObj
+#
+DEFUN tlvGetTag
+  /applet JCipher
+ 
+  /set-var obj $(pad -p NOPAD -b 1 ${argv[0];q})
+  
+  /set-var tag ${obj;s0,2;q}
+  if $(/expr 0x${tag} & 0x1f) == 0x1f
+    /set-var tag ${tag;q}${obj;s2,2;q}
+  end
+  
+  return ${tag;q}
+END
+
+#
+# usage: tlvGetLength tlvObj
+#
+DEFUN tlvGetLength
+  /applet JCipher
+  
+  /set-var obj $(pad -p NOPAD -b 1 ${argv[0];q})
+  /set-var len    0
+  
+  /set-var curPos 0
+  if $(/expr 0x${obj;s${curPos},2} & 0x1f) == 0x1f
+    /set-var curPos $(/expr ${curPos} + 2)
+  end 
+  /set-var curPos $(/expr ${curPos} + 2)
+
+  if $(/expr 0x${obj;s${curPos},2} & 0x80) == 0x80
+    /set-var len $(/expr 0x${obj;s${curPos},2} & 0x7f)  # length of length field
+    /set-var curPos $(/expr ${curPos} + 2)
+    /set-var len $(/expr 0x${obj;s${curPos},$(/expr ${len} * 2)} * 2)  # length of value field
+  else
+    /set-var len $(/expr 0x${obj;s${curPos},2} * 2)     # length of value field
+  end
+  
+  return ${len}
+END
+
+#
+# usage: tlvGetPayload tlvObj
+#
+DEFUN tlvGetPayload
+  /applet JCipher
+
+  /set-var obj $(pad -p NOPAD -b 1 ${argv[0];q})
+  /set-var hdrLen $(tlvGetHdrLength ${obj;q})
+  /set-var len $(tlvGetLength ${obj;q})
+  
+  return ${obj;s${hdrLen},${len};q}
+END
+
+#
+# usage: tlvGetObj tag tlvObjSequence
+#
+DEFUN tlvGetObj
+  /applet JCipher
+  
+  /set-var tag $(pad -p NOPAD -b 1 ${argv[0];q})
+  /set-var obj $(pad -p NOPAD -b 1 ${argv[1];q})
+  
+  while ${obj;l} > 0
+   
+    /set-var objLen $(tlvGetHdrLength ${obj;q})
+    /set-var _ll_ $(tlvGetLength ${obj;q})
+    /set-var objLen $(/expr ${objLen} + ${_ll_} )
+    
+    /set-var _t_ $(tlvGetTag ${obj;q})
+    if ${tag;q} == ${_t_;q}
+      return ${obj;s0,${objLen};q}
+    end
+    
+    /set-var obj ${obj;s${objLen};q}
+  end
+  
+  return ""
+END

@@ -1,0 +1,45 @@
+  gp22/gp22_AmdA_Oncard
+
+#####################################################################
+# This example creates a fake response with a OBGK and recovers 
+# the OBGK from the fake response. The OBGK is used to derive 
+# the APSD session keys.
+/app crypto
+
+#initialise the global data structures which are needed
+myAPSD.Pull.Key
+myCERT.CA.AUT
+myCERT.AP
+
+#The keyset-number where the keyset shall be stored
+/set-var myKeyset 42
+> 0
+#mimic the request to pull the OBGK from the APSD
+pullData=$(composeKeyPull)
+pullData=${pullData;s10,1000}
+#the following call would be the STORE DATA with a real card
+createOBGKSign -A6 ${pullData}
+#now OBGK.SIGNATURE and OBGK.REMAINER is set with a RNG(16byte)
+#for later verification a global variable 'oncardOBGK' is set.
+
+#compose the fake response
+lenRemainder=$(/expr ${OBGK.REMAINER;l} / 2)
+fake_response=80${OBGK.SIGNATURE}${lenRemainder;h2}${OBGK.REMAINDER}
+#now use this faked response to extract the OBGK
+OBGK=$(recoverOBGK -resp ${fake_response})
+
+/echo "recovered OBGK "${OBGK}
+/echo "generated OBGK "${oncardOBGK}
+
+#enable the cardmanager plugin to have the SD functionalities availabe in the JCShell
+/app cm
+#derive the keys and store them in the keyset inside the offcard key storage.
+setAmdASessionKeys -keyset ${myKeyset} -RGK ${OBGK}
+print-key 
+
+#you could initialize-update and external-authenticate now
+#/select ${APSD_AID}
+#init-update ${myKeyset}
+#ext-auth enc
+
+

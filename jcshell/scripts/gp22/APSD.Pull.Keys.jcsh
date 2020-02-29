@@ -1,0 +1,25 @@
+##########################################################
+# Data to compose the PULL command to pull the on board 
+# generated random number from the card
+
+/set-var -g APSD.PULL.SK.TAG A6
+/set-var -g APSD.PULL.SK.SCENID 01
+/set-var -g APSD.PULL.SK.KEYQ 10
+/set-var -g APSD.PULL.SK.KEYTYPE 80
+/set-var -g APSD.PULL.SK.KEYLENGTH 10
+/set-var -g APSD.PULL.SK.KEYVERSION "N/A"
+/set-var -g APSD.PULL.SK.COUNTERINIT "N/A"
+/set-var -g APSD.PULL.SK.SECDOMIMGNR "N/A"
+
+##########################################################
+# Data to compose the PUSH command to push the 
+# secure channel keys from off card to the card
+
+/set-var -g APSD.PUSH.SK.TAG A6
+/set-var -g APSD.PUSH.SK.SCENID 02
+/set-var -g APSD.PUSH.SK.KEYQ 10
+/set-var -g APSD.PUSH.SK.KEYTYPE 80
+/set-var -g APSD.PUSH.SK.KEYLENGTH 10
+/set-var -g APSD.PUSH.SK.KEYVERSION "N/A"
+/set-var -g APSD.PUSH.SK.COUNTERINIT "N/A"
+/set-var -g APSD.PUSH.SK.SECDOMIMGNR "N/A"

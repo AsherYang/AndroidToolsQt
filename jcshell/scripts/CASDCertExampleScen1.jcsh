@@ -1,0 +1,39 @@
+##########################################################################################
+# This example does a round-trip check of certificate creation and 
+# certificate verfication and PK.CASD.AUT recovery
+# The values of fields for the certificate to create are set in myCert.CA.AUT.kcsh
+# which can be found in the ./scripts folder of the JCShell installation.
+
+#set PK.CA.AUT and SK.CA.AUT
+xK.CA.AUT
+#set my key material and Cert info
+myCERT.CA.AUT
+
+#create the certificate 
+certificate=$(composeCasdCert)
+
+/echo ${certificate}
+
+#certificate=get-data (7f21)
+
+#round-trip
+#clear the public key which will be recorvered form the certificate, just to see the effect of parsing
+/set-var -g PK.CASD.AUT_MODULUS  "N/A"
+/set-var -g PK.CASD.AUT_EXPONENT "N/A"
+
+#parse the created certificate
+parseCERT.CASD -cert ${certificate}
+
+#verify the signature and recover the PK.CASD.AUT key
+ispass=$(verifyAndRecover)
+if ${ispass} 
+	/echo "******************************"
+	/echo "***   verification PASS    ***"
+	/echo "******************************"
+	/echo "PK.CASD.AUT MODULUS  : "${PK.CASD.AUT_MODULUS}
+	/echo "PK.CASD.AUT EXPONENT : "${PK.CASD.AUT_EXPONENT}
+else
+  /echo "******************************"
+	/echo "***   verification FAIL    ***"
+	/echo "******************************"
+end

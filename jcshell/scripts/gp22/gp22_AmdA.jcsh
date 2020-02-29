@@ -1,0 +1,1913 @@
+#just because of a bug in an old JCSHELL where the name PKCS15 means PKCS1#
+#/set-var -g OBGKRSAPAD "PKCS15"
+/set-var -g OBGKRSAPAD "PKCS1"
+
+
+#getOpt.jcsh contains support functions to parse commandline parameters
+tools/getOpt
+
+#set the Amendment A scenario
+/set-var -g AmdA.SCENARIO N/A
+
+#read the CERT.CASD.AUT/CERT.CASD.CT structure 
+gp22/CERT.CASD
+#read the CERT.AP.CT/CERT.AP.AUT structure 
+gp22/CERT.AP
+
+#read the keys 
+xK.CA.AUT
+
+gp22/APSD.Pull.Keys
+
+#the crypto plugin provides us crypto functionality which we need later
+/register crypto 0000000000 Crypto
+/register cm 00a4040008A00000015100000000 CardManager
+
+/set-var -g ISD_AID 00a4040008A00000015100000000
+
+########################################################################
+# setAmdASessionKeys												   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# The function derives session keys according to GP2.2 AmdA chapter    #
+# 4.6.2 and assigns the calculated key to the given keyset. The number #
+# of the keyset can be used in a following init-update.                #
+# In this early version the only parameter check that is done is, if   #
+# the provided RGK is exactly 16byte wide.                             #
+#                                                                      #
+# @in keyset The nuber of the keyset to which the calculated keys      #
+#               shall be assigned to. The value for keyset has to      #
+#               follow the same rules as for the set-key command. To   #
+#               use this keyset provide the same number in the follwing#
+#               initialize-update command.                             #
+# @in RGK RGK must contain the 16byte random number provided by the    #
+#         APSD.                                                        #
+# @return 1 or true  the length of RGK is 16byte.                      #
+#         0 or false the length of RGK was not 16byte. The calculation #
+#         was aborted.                                                 #
+########################################################################
+DEFUN setAmdASessionKeys GLOBAL
+		/set-var argKeyset[*]
+		/set-var argRGK[*]
+		getOpt "keyset:" argKeyset "RGK:" argRGK  "---"  ${argv[*];qq} 
+
+#prepare the keydata
+		KeyDataEnc1=FFFFFFFFFFFFF001
+		KeyDataEnc2=FFFFFFFFFFFF0F01
+		KeyDataMac1=FFFFFFFFFFFFF002
+		KeyDataMac2=FFFFFFFFFFFF0F02
+		KeyDataDek1=FFFFFFFFFFFFF003
+		KeyDataDek2=FFFFFFFFFFFF0F03
+
+#length check of RGK		
+		len=${argRGK;l}
+		/set-var len $(/expr ${len} / 2)
+		/set-var lenValid $(/expr ${len} == 16)
+		
+		if ${lenValid}
+#enable the crypto plugin to make use of the encrypt function
+			/app crypto
+#executing the key derivation
+			KeyDataEnc1dec=$(encrypt -m DES/ECB -k ${argRGK} -p NOPAD ${KeyDataEnc1})
+			KeyDataEnc2dec=$(encrypt -m DES/ECB -k ${argRGK} -p NOPAD ${KeyDataEnc2})
+			KeyDataEnc=${KeyDataEnc1dec}${KeyDataEnc2dec}
+			
+			KeyDataMac1dec=$(encrypt -m DES/ECB -k ${argRGK} -p NOPAD ${KeyDataMac1})
+			KeyDataMac2dec=$(encrypt -m DES/ECB -k ${argRGK} -p NOPAD ${KeyDataMac2})
+			KeyDataMac=${KeyDataMac1dec}${KeyDataMac2dec}
+			
+			KeyDataDek1dek=$(encrypt -m DES/ECB -k ${argRGK} -p NOPAD ${KeyDataDek1})
+			KeyDataDek2dek=$(encrypt -m DES/ECB -k ${argRGK} -p NOPAD ${KeyDataDek2})
+			KeyDataDek=${KeyDataDek1dek}${KeyDataDek2dek}
+#setting the keyset
+			set-key ${argKeyset}/1/DES-ECB/${KeyDataEnc} ${argKeyset}/2/DES-ECB/${KeyDataMac} ${argKeyset}/3/DES-ECB/${KeyDataDek}
+			return 1
+		else
+			/error 'RGK key length is '${len}' byte and must be 16 byte'
+			return 0
+		end	
+END
+
+########################################################################
+# _getLenLen														   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This internal function interpretes the given byte as a BER-TLV coded #
+# length byte and returns the length.                                  #
+#                                                                      #
+# @in lenByte the length of the BER-TLV coded length information.      #
+#                                                                      #
+# @return the length coded in the byte                                 #
+# @error   when a illegal length coding is detected                    #
+########################################################################
+DEFUN _getLenLen GLOBAL
+  /app crypto
+	/set-var argLenByte[*]
+	getOpt "lenByte:" argLenByte "---"  ${argv[*];qq}
+	if $(/expr ${argLenByte} & 0x80)
+    len=$(/expr ${argLenByte} & 0x07)
+    if $(/expr ${len} == 0)
+    	/error "illegal length coding :"${argLenByte}
+    end
+    len=$(/expr ${len} + 1) 
+		return $(/expr ${len} * 2) 
+	else
+		return 2
+	end
+END
+
+########################################################################
+# _getStrLen														   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This internal function returns the double value of the BER-TLV coded #
+# length information field. The returned length can be easily used as  #
+# length in a string of hex-values.                                    #
+#                                                                      #
+# @in lenBytes the BER-TLV coded length information as string of       #
+#              hex-values.                                             #
+#                                                                      #
+# @return the value of the length information                          #
+# @error   when the number of passed bytes is either <1 or > 5         #
+########################################################################
+DEFUN _getStrLen GLOBAL
+    /app crypto
+		/set-var argLength[*]
+		getOpt "length:" argLength "---"  ${argv[*];qq} 
+		if $(/expr ${argLength;l} < 2)
+			/error "provide at least 1 byte as length information"
+		end
+		if $(/expr ${argLength;l} > 10)
+			/error "maximum number of bytes is 10"
+		end
+		if $(/expr ${argLength;l} % 2)
+		  /error "odd number of nibble in the length information"
+		end
+		
+		if $(/expr ${argLength;l} == 2)
+			#one byte
+			if $(/expr 0x${argLength} & 0x80)
+				/error "The value 0x80 for a single byte is not allowed. Please see ASN.1 encoding rules. (ITU-T X.690)"
+			end
+			lengthInfo=${argLength}
+		else
+		  lenStart=2
+			lenLen=$(/expr ${argLength;l} - 2)
+			lengthInfo=${argLength;s${lenStart},${lenLen}}
+		end	
+		return $(/expr 0x${lengthInfo} * 2)
+END
+
+########################################################################
+# parseCERT.CASD GLOBAL											       #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function parses a given input string as CERT.CASD.AUT or        #
+# CERT.CASD.CT depending on the Amendment A Scenarios.                 #
+# The result is stored in global variables starting with               #
+# CERT.CASD.AUT/CERT.CASD.CT and CERT.CASD.                            #
+# Check /list-var after a successful run of this                       #
+# function.                                                            #
+# This function expects the contained tags in the same sequence as     #
+# listed in the UICC spec Table 10.4.                                  #
+#                                                                      #
+# @in cert CERT.CASD.AUT/CERT.CASD.CT as string with hexadecimal values#
+#		with NO leading 0x.                                            #
+#                                                                      #
+######################################################################## 
+DEFUN parseCERT.CASD GLOBAL
+    /app crypto
+		/set-var argCERT[*]
+		getOpt "cert:" argCERT "---"  ${argv[*];qq} 
+		
+		#just to check the tag
+		curpos=0
+		/set-var -g CERT.CASD.TAG ${argCERT;s${curpos},4}
+		if $(/expr ${argCERT;s${curpos},4;uc} != 7F21)
+			/error "Tag 7F21 expected"
+		end	
+		curpos=$(/expr ${curpos} + 4)
+		certAuthLenLen=$(_getLenLen -lenByte 0x${argCERT;s${curpos},2})
+		certAuthLen=$(_getStrLen -length ${argCERT;s${curpos},${certAuthLenLen}})
+		curpos=$(/expr ${curpos} + ${certAuthLenLen})
+		
+		#the certificate serial number
+		certSerNrTag=${argCERT;s${curpos},2}
+		if $(/expr ${argCERT;s${curpos},2;uc} != 93)
+			/error "Tag 93 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		certSerNrLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		certSerNrLen= $(/expr ${certSerNrLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.SERIAL ${argCERT;s${curpos},${certSerNrLen}}
+		curpos=$(/expr ${curpos} + ${certSerNrLen})
+		
+		#CA Identifier
+		caIdTag=${argCERT;s${curpos},2}
+		if $(/expr ${argCERT;s${curpos},2;uc} != 42)
+			/error "Tag 42 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		caIdLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		caIdLen= $(/expr ${caIdLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.CAID ${argCERT;s${curpos},${caIdLen}}
+		curpos=$(/expr ${curpos} + ${caIdLen})
+		
+		#Subject Identifier
+		subjIdTag=${argCERT;s${curpos},4}
+		if $(/expr ${argCERT;s${curpos},4;uc} != 5F20)
+			/error "Tag 5F20 expected"
+		end	
+		curpos=$(/expr ${curpos} + 4)
+		subjIdLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		subjIdLen= $(/expr ${subjIdLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.SUBJID ${argCERT;s${curpos},${subjIdLen}}
+		curpos=$(/expr ${curpos} + ${subjIdLen})
+		
+		#Key Usage
+		key€seTag=${argCERT;s${curpos},2}
+		if $(/expr ${argCERT;s${curpos},2;uc} != 95)
+			/error "Tag 95 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		keyUseLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		keyUseLen= $(/expr ${keyUseLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.KEYUSE ${argCERT;s${curpos},${keyUseLen}}
+		curpos=$(/expr ${curpos} + ${keyUseLen})
+		
+		#effective Date (optional)
+		effDateTag=${argCERT;s${curpos},4}
+		curpos=$(/expr ${curpos} + 4)
+		isEffDate=$(/expr ${effDateTag} == 5F25)
+		if ${isEffDate}
+			effDateLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+			effDateLen= $(/expr ${effDateLen} * 2)
+			curpos=$(/expr ${curpos} + 2)
+			/set-var -g CERT.CASD.EFFECTIVEDATE ${argCERT;s${curpos},${effDateLen}}
+			curpos=$(/expr ${curpos} + ${effDateLen})
+			
+			#expiration Date
+			expDateTag=${argCERT;s${curpos},4}
+			curpos=$(/expr ${curpos} + 4)
+		else
+		  /set-var -g CERT.CASD.EFFECTIVEDATE "N/A"
+			expDateTag=${effDateTag}
+		end
+		if $(/expr ${expDateTag;uc} != 5F24)
+			/error "Tag 5F24 expected"
+		end	
+		expDateLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		expDateLen= $(/expr ${expDateLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.EXPIRATIONDATE ${argCERT;s${curpos},${expDateLen}}
+		curpos=$(/expr ${curpos} + ${expDateLen})
+		
+		#CA Security Domain Image Number
+		caSecDomImgTag=${argCERT;s${curpos},2}
+		if $(/expr ${caSecDomImgTag;uc} != 45)
+			/error "Tag 45 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		caSecDomImgLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		caSecDomImgLen= $(/expr ${caSecDomImgLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.CASECDOMIMGNR ${argCERT;s${curpos},${caSecDomImgLen}}
+		curpos=$(/expr ${curpos} + ${caSecDomImgLen})
+		
+		#Discretionary Data (optional)
+		disDataTag=${argCERT;s${curpos},2}
+		isDisDataTag=$(/expr ${disDataTag} == 53)
+		
+		if ${isDisDataTag}
+			curpos=$(/expr ${curpos} + 2)
+			disDataLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+			disDataLen= $(/expr ${disDataLen} * 2)
+			curpos=$(/expr ${curpos} + 2)
+			/set-var -g CERT.CASD.DISCRDATA ${argCERT;s${curpos},${disDataLen}}
+			curpos=$(/expr ${curpos} + ${disDataLen})
+		else
+			/set-var -g CERT.CASD.DISCRDATA "N/A"
+		end
+		
+		#Signature
+		signTag=${argCERT;s${curpos},4}
+		if $(/expr ${signTag;uc} != 5F37)
+			/error "Tag 5F37 expected. Found "${signTag}
+		end	
+		curpos=$(/expr ${curpos} + 4)
+		signLenLen=$(_getLenLen -lenByte 0x${argCERT;s${curpos},2})
+		signLen=$(_getStrLen -length ${argCERT;s${curpos},${signLenLen}})
+		curpos=$(/expr ${curpos} + ${signLenLen})
+		/set-var -g CERT.CASD.SIGNATURE ${argCERT;s${curpos},${signLen}}
+		curpos=$(/expr ${curpos} + ${signLen})
+		
+		#Remainder
+		remainderTag=${argCERT;s${curpos},4}
+		if $(/expr ${remainderTag;uc} != 5F38)
+			/error "Tag 5F38 expected"
+		end	
+		curpos=$(/expr ${curpos} + 4)
+		remainderLenLen=$(_getLenLen -lenByte 0x${argCERT;s${curpos},2})
+		remainderLen=$(_getStrLen -length ${argCERT;s${curpos},${remainderLenLen}})
+		curpos=$(/expr ${curpos} + ${remainderLenLen})
+		/set-var -g CERT.CASD.REMAINDER ${argCERT;s${curpos},${remainderLen}}
+		curpos=$(/expr ${curpos} + ${remainderLen})
+		
+		#last overall length checks
+		if $(/expr ${argCERT;l} < ${curpos})
+			/error "The length of the certificate is smaller than the sum of lengths of the contained tags."
+		end
+		if $(/expr ${argCERT;l} > ${curpos})
+			/error "There are still bytes left in the certificate after parsing."
+		end
+		expCertLenOffset=$(/expr ${certAuthLenLen} + 4)
+		expCertStrLen=$(/expr ${argCERT;l} - ${expCertLenOffset})
+		expCertLen=$(/expr ${expCertStrLen} / 2)
+		certAuthLen=$(/expr ${certAuthLen} / 2)
+		if $(/expr ${expCertLen} != ${certAuthLen})
+			/error "The length of the 7F21 Tag does not match the parsed length. Expected: "0x${expCertLen;h4}"  and is: "0x${certAuthLen;h4}"."
+		end
+END
+
+########################################################################
+# _composeCasdHashPattern   										   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function composes the byte pattern used for hashing as input    #
+# to generate the CASD signature. Precondition is, that the variables  #
+# in CERT.CASD.AUT.jcsh are either set by parseCERT.CASD or set by     #
+# hand.                                                                #
+#                                                                      #
+# @return the byte-pattern that can be used for hashing.               #
+#                                                                      #
+######################################################################## 
+DEFUN _composeCasdHashPattern GLOBAL
+	/set-var argMod[*]
+    /set-var argExp[*]
+    getOpt "mod:" argMod "exp:" argExp "---" ${argv[*];qq} 
+
+  /app crypto 
+	#Public Key
+	#Public Key Exponent
+	isValidExp=$(/expr $(/expr ${argExp} == 03) || $(/expr ${argExp} == 010001))
+	if $(/expr ${isValidExp} != 1)
+		/error "Expected exponent '03' or '010001'. Exponent of CERT.CASD.PK is "${argExp}"."
+	end
+	casdExpLen=$(/expr ${argExp;l} / 2)
+	casdExpVal="82"${casdExpLen;h2}${argExp}
+	
+	#Public Key Modulus
+	modulusLen=$(/expr ${argMod;l} / 2)
+	if $(/expr ${modulusLen} != 128)
+		/error "Expected length of modulus of CERT.CASD.PK is 128bytes. Actual length is "${modulusLen}"."
+	end
+	casdModVal="818180"${argMod}
+	
+	pubKeyTagVal=${casdExpVal}${casdModVal}
+	pubKeyValLen=$(/expr ${pubKeyTagVal;l} / 2)
+	pubKeyVal="7F4981"${pubKeyValLen;h2}${pubKeyTagVal}
+	
+	#Certificate Serial Number
+	serNumLen=$(/expr ${CERT.CASD.SERIAL;l} / 2)
+	serNumVal="93"${serNumLen;h2}${CERT.CASD.SERIAL}
+	
+	#CA Identifier
+	caIdLen=$(/expr ${CERT.CASD.CAID;l} / 2)
+	caIdVal="42"${caIdLen;h2}${CERT.CASD.CAID}
+	
+	#Subj Id
+	subjIdLen=$(/expr ${CERT.CASD.SUBJID;l} / 2)
+	subjIdVal="5F20"${subjIdLen;h2}${CERT.CASD.SUBJID}
+	
+	#Effective Date (conditional)
+	if $(/expr ${CERT.CASD.EFFECTIVEDATE} != "N/A")
+		effDateLen=$(/expr ${CERT.CASD.EFFECTIVEDATE;l} / 2)
+	  effDateVal="5F25"${effDateLen;h2}${CERT.CASD.EFFECTIVEDATE}
+	else
+		effDateVal=""
+	end
+	
+	#Expiration Date
+	expDateLen=$(/expr ${CERT.CASD.EXPIRATIONDATE;l} / 2)
+	expDateVal="5F24"${expDateLen;h2}${CERT.CASD.EXPIRATIONDATE}
+	
+	#Key Usage
+	keyUseLen=$(/expr ${CERT.CASD.KEYUSE;l} / 2)
+	keyUseVal="95"${keyUseLen;h2}${CERT.CASD.KEYUSE}
+	
+	#Casd Domain Image Number
+	imgNrLen=$(/expr ${CERT.CASD.CASECDOMIMGNR;l} / 2)
+	imgNrVal="45"${imgNrLen;h2}${CERT.CASD.CASECDOMIMGNR}
+	
+	#Discretionary Data (conditional)
+	if $(/expr ${CERT.CASD.DISCRDATA} != "N/A")
+		discrDataLen=$(/expr ${CERT.CASD.DISCRDATA;l} / 2)
+	  discrDataVal="53"${discrDataLen;h2}${CERT.CASD.DISCRDATA}
+	else
+		discrDataVal=""
+	end
+	
+	finalHashPattern=${pubKeyVal}${serNumVal}${caIdVal}${subjIdVal}${effDateVal}${expDateVal}${keyUseVal}${imgNrVal}${discrDataVal}
+	return ${finalHashPattern}
+END
+
+##################################################################
+# _calcCasdHash 											     #		
+#																 #
+# This function	calculates the hash.							 #
+#																 #
+##################################################################
+DEFUN _calcCasdHash GLOBAL
+	/set-var argMod[*]
+    /set-var argExp[*]
+    getOpt "mod:" argMod "exp:" argExp "---" ${argv[*];qq} 
+#${tagPubKeyForSignature}81#(${tagExponentForSignature}#(${casdExponent})${tagModulusForSignature}81#(${casdModulus}))${tagCertificateSerialNumber}#(${casdCertSn})${tagCaIdentifier}#(${caId})${tagSubjectIdentifier}#(${casdSubjectId})${tagEffectiveDate}#(${casdEffectiveDate})${tagExpirationDate}#(${casdExpirationDate})${tagKeyUsage}#(${casdKeyUsage})${tagCasdImageNumber}#(${casdIn})${tagDiscretionaryData}#(${discretionaryData}))
+#construct the tag for signing
+	hashPattern=$(_composeCasdHashPattern -mod ${argMod} -exp ${argExp})
+	/app crypto
+	> 0
+  hash=$(hash -m SHA-1 ${hashPattern})
+  > 1
+	return ${hash}
+END
+
+##################################################################
+# verifyAndRecover 											     #		
+#																 #
+# This function	verifies the CASD certificate and recovers  	 #
+# the public key												 #
+##################################################################
+DEFUN verifyAndRecover GLOBAL
+		/app crypto
+		#decrypt the signature
+		#the key length must be 1024bit
+		modLen=$(/expr ${PK.CA.AUT_MODULUS;l} / 2)
+		if $(/expr ${modLen} != 128) 
+			/error "Wrong key length. PK.CA.AUT_MODULUS length must be 1024bit and is actually "$(/expr ${modLen} * 8)"bit long"
+		end
+		  
+		#check for the Amendment A scenarios
+		validExp=$(/expr $(/expr ${AmdA.SCENARIO} == 1) || $(/expr ${AmdA.SCENARIO} == 2A) ||  $(/expr ${AmdA.SCENARIO} == 2B))
+		if $(/expr ${validExp} != 1)
+			/error "Provide one of the valid Amendment A scenarios: 1 or  2A or  2B"
+		end
+		
+		#recover public key and verify hash
+		expLen=$(/expr ${PK.CA.AUT_EXPONENT;l} / 2)
+		keyParam=80${PK.CA.AUT_MODULUS}${expLen;h2}${PK.CA.AUT_EXPONENT}
+		/app crypto
+		> 0
+		signDecr=$(decrypt -m RSA -p NOPAD -k ${keyParam} ${CERT.CASD.SIGNATURE})
+		> 3
+		#recover public key
+		#exponent   ${tagPubKeyForSignature}818882#(${casdExponent})818180${casdModulus;s0,${part1ModulusLen}}
+		curpos=2
+		tagPubKeyForSignature=${signDecr;s${curpos},4}
+		curpos=$(/expr ${curpos} + 4)
+		
+		if $(/expr ${tagPubKeyForSignature;uc} != 7F49)
+			/error "Expected tag 7F49 in the decrypted signature"
+		end
+		pubKeyTagLenLen=$(_getLenLen -lenByte 0x${signDecr;s${curpos},2})
+	  pubKeyTagLen=$(_getStrLen -length ${signDecr;s${curpos},${pubKeyTagLenLen}})
+	  curbck=${curpos}
+	  curpos=$(/expr ${curpos} + ${pubKeyTagLenLen})
+	  #****************** cascaded tag for public RSA key ************************************
+	  #parse the content/value field of this tag for the public exponent and modulus part1
+	  keypos=0
+	  pubKey=${signDecr;s${curpos},${pubKeyTagLen}}
+	  pubExpTag=${pubKey;s${keypos},2}
+	  if $(/expr ${pubExpTag} != 82)
+	  	/error "Expected tag 82 for the public exponent"
+		end
+		keypos=$(/expr ${keypos} + 2)
+	
+		pubExpLenLen=$(_getLenLen -lenByte 0x${pubKey;s${keypos},2})
+	  pubExpLen=$(_getStrLen -length ${pubKey;s${keypos},${pubExpLenLen}})
+	  keypos=$(/expr ${keypos} + ${pubExpLenLen})
+	
+	  if $(/expr ${AmdA.SCENARIO} == 1)
+		/set-var -g PK.CASD.AUT_EXPONENT ${pubKey;s${keypos},${pubExpLen}}
+		/set-var hashKeyExp ${PK.CASD.AUT_EXPONENT}
+	  else
+		/set-var -g PK.CASD.CT_EXPONENT ${pubKey;s${keypos},${pubExpLen}}
+		/set-var hashKeyExp ${PK.CASD.CT_EXPONENT}
+	  end
+	  keypos=$(/expr ${keypos} + ${pubExpLen})
+	  
+	  pubModTag=${pubKey;s${keypos},2}
+	  if $(/expr ${pubModTag} != 81)
+	  	/error "Expected tag 81 for the public modulus"
+		end
+		keypos=$(/expr ${keypos} + 2)
+	   
+		pubModLenLen=$(_getLenLen -lenByte 0x${pubKey;s${keypos},2})
+	  pubModLen=$(_getStrLen -length ${pubKey;s${keypos},${pubModLenLen}})
+	  if $(/expr ${pubModLen} == 256)
+	  	pubModLen=$(/expr ${pubModLen} - ${CERT.CASD.REMAINDER;l})
+	  end
+	  keypos=$(/expr ${keypos} + ${pubModLenLen})
+	  
+	  #set CASD keys based on Amendment A Scenarios
+	  if $(/expr ${AmdA.SCENARIO} == 1)
+		/set-var -g PK.CASD.AUT_MODULUS ${pubKey;s${keypos},${pubModLen}}${CERT.CASD.REMAINDER}
+		/set-var hashKeyMod ${PK.CASD.AUT_MODULUS}
+	  else
+		/set-var -g PK.CASD.CT_MODULUS ${pubKey;s${keypos},${pubModLen}}${CERT.CASD.REMAINDER}
+		/set-var hashKeyMod ${PK.CASD.CT_MODULUS}
+	  end
+	  
+	  keypos=$(/expr ${keypos} + ${pubModLen})
+		#****************************************************************************************
+		curpos=$(/expr ${curpos} + ${keypos})
+		sha1StrHashLen=40
+		signHash=${signDecr;s${curpos},${sha1StrHashLen}}
+		calcHash=$(_calcCasdHash -mod ${hashKeyMod} -exp ${hashKeyExp})
+		return $(/expr ${signHash} == ${calcHash})
+END
+
+
+########################################################################
+# composeCasdCert           										   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function composes the byte pattern for a Casd Certificate.      #
+# Precondition is, that the variables                                  #
+# in CERT.CASD.AUT.jcsh/CERT.CASD.CT.jcsh are either set by            #
+# parseCERT.CASD or set by hand.                                       #
+#                                                                      #
+# @return the byte-pattern that can be used for store data.            #
+#                                                                      #
+######################################################################## 
+DEFUN composeCasdCert GLOBAL
+  /app crypto
+	certValue=""
+
+  #check for the Amendment A scenarios
+  validExp=$(/expr $(/expr ${AmdA.SCENARIO} == 1) || $(/expr ${AmdA.SCENARIO} == 2A) ||  $(/expr ${AmdA.SCENARIO} == 2B))
+  if $(/expr ${validExp} != 1)
+  	/error "Provide one of the valid Amendment A scenarios: 1 or  2A or  2B"
+  end
+  
+  #First the content for the correct length calculation later 
+  #Certificate Serial Number
+	serNumLen=$(/expr ${CERT.CASD.SERIAL;l} / 2)
+	serNumVal="93"${serNumLen;h2}${CERT.CASD.SERIAL}
+	certValue=${certValue}${serNumVal}
+    
+	#CA Identifier
+	caIdLen=$(/expr ${CERT.CASD.CAID;l} / 2)
+	caIdVal="42"${caIdLen;h2}${CERT.CASD.CAID}
+	certValue=${certValue}${caIdVal}
+	
+	#Subj Id
+	subjIdLen=$(/expr ${CERT.CASD.SUBJID;l} / 2)
+	subjIdVal="5F20"${subjIdLen;h2}${CERT.CASD.SUBJID}
+	certValue=${certValue}${subjIdVal}
+	
+	#Key Usage
+	keyUseLen=$(/expr ${CERT.CASD.KEYUSE;l} / 2)
+	keyUseVal="95"${keyUseLen;h2}${CERT.CASD.KEYUSE}
+	certValue=${certValue}${keyUseVal}
+	
+	#Effective Date (conditional)
+	if $(/expr ${CERT.CASD.EFFECTIVEDATE} != "N/A") 
+		effDateLen=$(/expr ${CERT.CASD.EFFECTIVEDATE;l} / 2)
+	  effDateVal="5F25"${effDateLen;h2}${CERT.CASD.EFFECTIVEDATE}
+	else
+		effDateVal=""
+	end
+	certValue=${certValue}${effDateVal}
+	
+	#Expiration Date
+	expDateLen=$(/expr ${CERT.CASD.EXPIRATIONDATE;l} / 2)
+	expDateVal="5F24"${expDateLen;h2}${CERT.CASD.EXPIRATIONDATE}
+	certValue=${certValue}${expDateVal}
+	
+	#Casd Domain Image Number
+	imgNrLen=$(/expr ${CERT.CASD.CASECDOMIMGNR;l} / 2)
+	imgNrVal="45"${imgNrLen;h2}${CERT.CASD.CASECDOMIMGNR}
+	certValue=${certValue}${imgNrVal}
+	
+	#Discretionary Data (conditional)
+	if $(/expr ${CERT.CASD.DISCRDATA} != "N/A")
+		discrDataLen=$(/expr ${CERT.CASD.DISCRDATA;l} / 2)
+	  discrDataVal="53"${discrDataLen;h2}${CERT.CASD.DISCRDATA}
+	else
+		discrDataVal=""
+	end
+	certValue=${certValue}${discrDataVal}
+	
+	#Signaturecontent
+	#Public Key
+	#Public Key Exponent
+	#Initialize the CASD certificate global variables depending on the Amd A Scenario
+	if $(/expr ${AmdA.SCENARIO} == 1)
+		hashKeyExp=${PK.CASD.AUT_EXPONENT}
+		hashKeyMod=${PK.CASD.AUT_MODULUS}
+	else
+		hashKeyExp=${PK.CASD.CT_EXPONENT}
+		hashKeyMod=${PK.CASD.CT_MODULUS}
+	end
+	
+	isValidExp=$(/expr $(/expr ${hashKeyExp} == 03) || $(/expr ${hashKeyExp} == 010001))
+	if $(/expr ${isValidExp} != 1)
+		/error "Expected exponent '03' or '010001'. Exponent of CERT.CASD.PK is "${hashKeyExp}"."
+	end
+	casdExpLen=$(/expr ${hashKeyExp;l} / 2)
+	casdExpVal="82"${casdExpLen;h2}${hashKeyExp}
+	
+	#Public Key Modulus
+	modulusLen=$(/expr ${hashKeyMod;l} / 2)
+	if $(/expr ${modulusLen} != 128)
+		/error "Expected length of modulus of CERT.CASD.AUT.PK is 128bytes. Actual length is "${hashKeyMod}"."
+	end
+	casdModVal="818180"${hashKeyMod}
+	pubKeyTagVal=${casdExpVal}${casdModVal}
+	pubKeyValLen=$(/expr ${pubKeyTagVal;l} / 2)
+	pubKeyVal="7F4981"${pubKeyValLen;h2}${pubKeyTagVal}
+  
+	#calculate hash
+	hash=$(_calcCasdHash -mod ${hashKeyMod} -exp ${hashKeyExp})
+	#value to encrypt with SK.CA.AUT
+	expLen=$(/expr ${SK.CA.AUT_EXPONENT;l} / 2)
+	keyParam=80${SK.CA.AUT_MODULUS}${expLen;h2}${SK.CA.AUT_EXPONENT}
+	/app crypto
+	signVal=6A${pubKeyVal;s0,212}${hash}BC
+	> 0
+	signDecr=$(encrypt -m RSA -p NOPAD -k ${keyParam} ${signVal})
+	> 3
+	CERT.CASD.SIGNATURE=${signDecr}
+	signValLen=$(/expr ${signDecr;l} / 2)
+	signVal="5F3781"${signValLen;h2}${CERT.CASD.SIGNATURE}
+	certValue=${certValue}${signVal}
+	
+	#Remainder
+	remainder=${pubKeyVal;s212,1122}
+	CERT.CASD.REMAINDER=${remainder}
+	remainderLen=$(/expr ${remainder;l} / 2)
+	remainderVal="5F3881"${remainderLen;h2}${remainder}
+	certValue=${certValue}${remainderVal}
+	
+	#the final certificate
+	CERT.CASD.TAG="7F21"
+	certLen=$(/expr ${certValue;l} / 2)
+	certVal=${CERT.CASD.TAG}"81"${certLen;h2}${certValue}
+
+	return ${certVal}
+END
+
+
+########################################################################
+# composeCasdCertAmdE           									   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function composes the byte pattern for a Casd Certificate.      #
+# required for Amendment E                                             #
+#                                                                      #
+# @return the byte-pattern that can be used for store data.            #
+#                                                                      #
+######################################################################## 
+DEFUN composeCasdCertAmdE GLOBAL
+  /app crypto
+	certValue=""
+  
+	#First the content for the correct length calculation later 
+	#Certificate Serial Number
+	serNumLen=$(/expr ${CERT.CASD.SERIAL;l} / 2)
+	serNumVal="93"${serNumLen;h2}${CERT.CASD.SERIAL}
+	certValue=${certValue}${serNumVal}
+	#/echo "printing values"
+	#/echo ${certValue}
+	
+	#CA Identifier
+	caIdLen=$(/expr ${CERT.CASD.CAID;l} / 2)
+	caIdVal="42"${caIdLen;h2}${CERT.CASD.CAID}
+	certValue=${certValue}${caIdVal}
+	
+	#Subj Id
+	subjIdLen=$(/expr ${CERT.CASD.SUBJID;l} / 2)
+	subjIdVal="5F20"${subjIdLen;h2}${CERT.CASD.SUBJID}
+	certValue=${certValue}${subjIdVal}
+	
+	#Effective Date (conditional)
+	if $(/expr ${CERT.CASD.EFFECTIVEDATE} != "N/A") 
+		effDateLen=$(/expr ${CERT.CASD.EFFECTIVEDATE;l} / 2)
+	  effDateVal="5F25"${effDateLen;h2}${CERT.CASD.EFFECTIVEDATE}
+	else
+		effDateVal=""
+	end
+	certValue=${certValue}${effDateVal}
+	
+	#Expiration Date
+	expDateLen=$(/expr ${CERT.CASD.EXPIRATIONDATE;l} / 2)
+	expDateVal="5F24"${expDateLen;h2}${CERT.CASD.EXPIRATIONDATE}
+	certValue=${certValue}${expDateVal}
+		
+	#Key Usage
+	keyUseLen=$(/expr ${CERT.CASD.KEYUSE;l} / 2)
+	keyUseVal="95"${keyUseLen;h2}${CERT.CASD.KEYUSE}
+	certValue=${certValue}${keyUseVal}
+	
+	#Casd Domain Image Number
+	imgNrLen=$(/expr ${CERT.CASD.CASECDOMIMGNR;l} / 2)
+	imgNrVal="45"${imgNrLen;h2}${CERT.CASD.CASECDOMIMGNR}
+	certValue=${certValue}${imgNrVal}
+	
+	#Discretionary Data (conditional)
+	if $(/expr ${CERT.CASD.DISCRDATA} != "N/A")
+		discrDataLen=$(/expr ${CERT.CASD.DISCRDATA;l} / 2)
+	  discrDataVal="53"${discrDataLen;h2}${CERT.CASD.DISCRDATA}
+	else
+		discrDataVal=""
+	end
+	certValue=${certValue}${discrDataVal}
+	
+	#Signaturecontent
+
+	#Initialize the CASD certificate global variables 
+	publicKeyX=${PKX.CASD.ECKA}
+	publicKeyY=${PKY.CASD.ECKA}
+
+	casdPublickey="04"${publicKeyX}${publicKeyY}
+	casdPublickeyVal=${publicKeyX}${publicKeyY}
+	caPrivatekey=${ECC.CA.PR}
+	
+	pubKeylen=$(/expr ${casdPublickey;l} / 2)
+	pubKeyTagVal="B0"${pubKeylen;h2}${casdPublickey}
+	tagLengthVal=$(/expr ${pubKeyTagVal;l} / 2)
+	pubkeyval="7F49"${tagLengthVal;h2}${pubKeyTagVal}
+	
+	signInputData=${pubkeyval}${serNumVal}${caIdVal}${subjIdVal}${effDateVal}${expDateVal}${keyUseVal}${imgNrVal}${discrDataVal}
+	#/echo "Sign Input during composing"
+	#/echo ${signInputData}
+	
+	/app crypto
+	> 0
+	sign -m ECDSA -o genSign -i ${signInputData} -d ${caPrivatekey}
+	> 1
+	signature=${SIGNATURE_ECDSA_R}${SIGNATURE_ECDSA_S}
+	/echo "Signature generated"
+	/echo ${signature}
+	
+	signlen=$(/expr ${signature;l} / 2)
+	CERT.CASD.SIGNATURE="5F37"${signlen;h2}${signature}
+	certValue=${certValue}${CERT.CASD.SIGNATURE}
+	
+	certValue=${certValue}${pubkeyval}
+	
+	#the final certificate
+	CERT.CASD.TAG="7F21"
+	certLen=$(/expr ${certValue;l} / 2)
+	certVal=${CERT.CASD.TAG}"81"${certLen;h2}${certValue}
+	#/echo "Final CASD certificate"
+	#/echo ${certVal}
+	return ${certVal}
+END
+
+########################################################################
+# parseCERT.CASD.AMDE GLOBAL										   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function parses a given input string as CERT.CASD.ECKA          #
+# The result is stored in global variables starting with               #
+# CERT.CASD															   #
+# Check /list-var after a successful run of this                       #
+# function.                                                            #
+# This function expects the contained tags in the same sequence        #
+#                                                                      #
+# @in cert CERT.CASD.ECKA as string with hexadecimal values            #
+#		with NO leading 0x.                                            #
+#                                                                      #
+######################################################################## 
+DEFUN parseCERT.CASD.AMDE GLOBAL
+    /app crypto
+		/set-var argCERT[*]
+		getOpt "cert:" argCERT "---"  ${argv[*];qq} 
+		
+		#just to check the tag
+		curpos=0
+		/set-var -g CERT.CASD.TAG ${argCERT;s${curpos},4}
+		if $(/expr ${argCERT;s${curpos},4;uc} != 7F21)
+			/error "Tag 7F21 expected"
+		end	
+		curpos=$(/expr ${curpos} + 6)
+		
+		certAuthLen=${argCERT;s${curpos},2}
+		curpos=$(/expr ${curpos} + ${certAuthLen;l})
+		
+		#the certificate serial number
+		certSerNrTag=${argCERT;s${curpos},2}
+		if $(/expr ${argCERT;s${curpos},2;uc} != 93)
+			/error "Tag 93 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		length=${argCERT;s${curpos},2}
+		certSerNrLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		certSerNrLen= $(/expr ${certSerNrLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.SERIAL ${argCERT;s${curpos},${certSerNrLen}}
+		
+		certSerialNoSignInput=${certSerNrTag}${length}${CERT.CASD.SERIAL}
+		
+		#/echo CERT.CASD.SERIAL
+		#/echo ${CERT.CASD.SERIAL}
+		curpos=$(/expr ${curpos} + ${certSerNrLen})
+		#/echo ${curpos}
+		
+		#CA Identifier
+		caIdTag=${argCERT;s${curpos},2}
+		if $(/expr ${argCERT;s${curpos},2;uc} != 42)
+			/error "Tag 42 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		length=${argCERT;s${curpos},2}
+		caIdLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		caIdLen= $(/expr ${caIdLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.CAID ${argCERT;s${curpos},${caIdLen}}
+		
+		caIdSignInput=${caIdTag}${length}${CERT.CASD.CAID}
+		
+		#/echo CERT.CASD.CAID
+		#/echo ${CERT.CASD.CAID}
+		curpos=$(/expr ${curpos} + ${caIdLen})
+		#/echo ${curpos}
+		
+		#Subject Identifier
+		subjIdTag=${argCERT;s${curpos},4}
+		if $(/expr ${argCERT;s${curpos},4;uc} != 5F20)
+			/error "Tag 5F20 expected"
+		end	
+		curpos=$(/expr ${curpos} + 4)
+		length=${argCERT;s${curpos},2}
+		subjIdLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		subjIdLen= $(/expr ${subjIdLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.SUBJID ${argCERT;s${curpos},${subjIdLen}}
+		
+		subIdSignInput=${subjIdTag}${length}${CERT.CASD.SUBJID}
+		
+		#/echo CERT.CASD.SUBJID
+		#/echo ${CERT.CASD.SUBJID}
+		curpos=$(/expr ${curpos} + ${subjIdLen})
+		#/echo ${curpos}
+
+		#effective Date (optional)
+		effDateTag=${argCERT;s${curpos},4}
+		curpos=$(/expr ${curpos} + 4)
+		isEffDate=$(/expr ${effDateTag} == 5F25)
+		if ${isEffDate}
+			length=${argCERT;s${curpos},2}
+			effDateLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+			effDateLen= $(/expr ${effDateLen} * 2)
+			curpos=$(/expr ${curpos} + 2)
+			/set-var -g CERT.CASD.EFFECTIVEDATE ${argCERT;s${curpos},${effDateLen}}
+			effDateSignInput=${effDateTag}${length}${CERT.CASD.EFFECTIVEDATE}
+			curpos=$(/expr ${curpos} + ${effDateLen})
+			
+			#expiration Date
+			expDateTag=${argCERT;s${curpos},4}
+			curpos=$(/expr ${curpos} + 4)
+			#/echo ${curpos}
+		else
+		    /set-var -g CERT.CASD.EFFECTIVEDATE "N/A"
+		    effDateSignInput=""
+			expDateTag=${effDateTag}
+		end
+		if $(/expr ${expDateTag;uc} != 5F24)
+			/error "Tag 5F24 expected"
+		end	
+		
+		length=${argCERT;s${curpos},2}
+		expDateLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		expDateLen= $(/expr ${expDateLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		#/echo ${curpos}
+		/set-var -g CERT.CASD.EXPIRATIONDATE ${argCERT;s${curpos},${expDateLen}}
+		
+		expDateSignInput=${expDateTag}${length}${CERT.CASD.EXPIRATIONDATE}
+		
+		curpos=$(/expr ${curpos} + ${expDateLen})
+		#/echo ${curpos}
+		
+		#/echo CERT.CASD.EFFECTIVEDATE 
+		#/echo ${CERT.CASD.EFFECTIVEDATE}
+		
+		#/echo CERT.CASD.EXPIRATIONDATE 
+		#/echo ${CERT.CASD.EXPIRATIONDATE}
+		
+		#Key Usage
+		keyUseTag=${argCERT;s${curpos},2}
+		if $(/expr ${argCERT;s${curpos},2;uc} != 95)
+			/error "Tag 95 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		length=${argCERT;s${curpos},2}
+		keyUseLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		keyUseLen= $(/expr ${keyUseLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		#/echo ${curpos}
+		/set-var -g CERT.CASD.KEYUSE ${argCERT;s${curpos},${keyUseLen}}
+		
+		keyUsageSignInput=${keyUseTag}${length}${CERT.CASD.KEYUSE}
+		
+		#/echo CERT.CASD.KEYUSE 
+		#/echo ${CERT.CASD.KEYUSE}
+		
+		curpos=$(/expr ${curpos} + ${keyUseLen})
+		#/echo ${curpos}
+		
+		#CA Security Domain Image Number
+		caSecDomImgTag=${argCERT;s${curpos},2}
+		if $(/expr ${caSecDomImgTag;uc} != 45)
+			/error "Tag 45 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		length=${argCERT;s${curpos},2}
+		caSecDomImgLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+		caSecDomImgLen= $(/expr ${caSecDomImgLen} * 2)
+		curpos=$(/expr ${curpos} + 2)
+		/set-var -g CERT.CASD.CASECDOMIMGNR ${argCERT;s${curpos},${caSecDomImgLen}}
+		
+		csdiNoSignInput=${caSecDomImgTag}${length}${CERT.CASD.CASECDOMIMGNR}
+		
+		#/echo CERT.CASD.CASECDOMIMGNR
+		#/echo ${CERT.CASD.CASECDOMIMGNR}
+		#/echo "Length of casedomimglen"
+		#/echo ${caSecDomImgLen}
+		curpos=$(/expr ${curpos} + ${caSecDomImgLen})
+		#/echo ${curpos}
+		
+		#Discretionary Data (optional)
+		disDataTag=${argCERT;s${curpos},2}
+		isDisDataTag=$(/expr ${disDataTag} == 53)
+		
+		if ${isDisDataTag}
+			curpos=$(/expr ${curpos} + 2)
+			length=${argCERT;s${curpos},2}
+			disDataLen=$(/expr 0x${argCERT;s${curpos},2} & 0x7f) 
+			disDataLen= $(/expr ${disDataLen} * 2)
+			curpos=$(/expr ${curpos} + 2)
+			/set-var -g CERT.CASD.DISCRDATA ${argCERT;s${curpos},${disDataLen}}
+			disDataSignInput=${disDataTag}${length}${CERT.CASD.DISCRDATA}
+			curpos=$(/expr ${curpos} + ${disDataLen})
+		else
+			/set-var -g CERT.CASD.DISCRDATA "N/A"
+			disDataSignInput=""
+		end
+		
+		#/echo ${curpos}
+		#Signature
+		signTag=${argCERT;s${curpos},4}
+		if $(/expr ${signTag;uc} != 5F37)
+			/error "Tag 5F37 expected. Found "${signTag}
+		end	
+		curpos=$(/expr ${curpos} + 4)
+		signLenLen=$(_getLenLen -lenByte 0x${argCERT;s${curpos},2})
+		signLen=$(_getStrLen -length ${argCERT;s${curpos},${signLenLen}})
+		curpos=$(/expr ${curpos} + ${signLenLen})
+		/set-var -g CERT.CASD.SIGNATURE ${argCERT;s${curpos},${signLen}}
+		curpos=$(/expr ${curpos} + ${signLen})
+		#/echo ${curpos}
+		
+		#/echo CERT.CASD.SIGNATURE
+		#/echo ${CERT.CASD.SIGNATURE}
+		
+		#CASD public key
+		pubkeyTag=${argCERT;s${curpos},4}
+		if $(/expr ${pubkeyTag;uc} != 7F49)
+			/error "Tag 7F49 expected"
+		end	
+		curpos=$(/expr ${curpos} + 4)
+		#/echo "check from here"
+		#/echo ${curpos}
+		length=${argCERT;s${curpos},2}
+		pubkeyLenLen=$(_getLenLen -lenByte 0x${argCERT;s${curpos},2})
+		pubkeyLen=$(_getStrLen -length ${argCERT;s${curpos},${pubkeyLenLen}})
+		curpos=$(/expr ${curpos} + ${pubkeyLenLen})
+		#/echo ${curpos}
+		
+		pubkeyTag2=${argCERT;s${curpos},2}
+		if $(/expr ${pubkeyTag2;uc} != B0)
+			/error "Tag B0 expected"
+		end	
+		curpos=$(/expr ${curpos} + 2)
+		#/echo ${curpos}
+		length2=${argCERT;s${curpos},2}
+		pubkeyLenLen2=$(_getLenLen -lenByte 0x${argCERT;s${curpos},2})
+		pubkeyLen2=$(_getStrLen -length ${argCERT;s${curpos},${pubkeyLenLen2}})
+		# adding 2 at the end because public key appended with 04
+		curpos=$(/expr ${curpos} + ${pubkeyLenLen2} + 2)
+		#/echo ${curpos}
+		
+		#/set-var -g PKX.CASD.ECKA ${argCERT;s${curpos},32}
+		curpos=$(/expr ${curpos} + 64)
+		#/set-var -g PKY.CASD.ECKA ${argCERT;s${curpos},32}
+		curpos=$(/expr ${curpos} + 64)
+		#/echo ${curpos}
+		
+		#/echo PKX.CASD.ECKA
+		#/echo ${PKX.CASD.ECKA}
+		#/echo PKY.CASD.ECKA
+		#/echo ${PKY.CASD.ECKA}
+		
+		#/echo curpos
+		#/echo ${curpos}
+		#/echo ${argCERT;l}
+		#last overall length checks
+		if $(/expr ${argCERT;l} < ${curpos})
+			/error "The length of the certificate is smaller than the sum of lengths of the contained tags."
+		end
+		if $(/expr ${argCERT;l} > ${curpos})
+			/error "There are still bytes left in the certificate after parsing."
+		end
+		expCertLenOffset=$(/expr ${certAuthLen;l} + 6)
+		#/echo ${expCertLenOffset}
+		expCertStrLen=$(/expr ${argCERT;l} - ${expCertLenOffset})
+		#/echo ${expCertStrLen}
+		expCertLen=$(/expr ${expCertStrLen} / 2)
+		#/echo ${expCertLen}
+		certAuthLen=$(/expr ${curpos} - 8) 
+		#/echo ${curpos}
+		certAuthLen=$(/expr ${certAuthLen} / 2) 
+		#/echo ${certAuthLen}
+		if $(/expr ${expCertLen} != ${certAuthLen})
+			/error "The length of the 7F21 Tag does not match the parsed length. Expected: "0x${expCertLen;h4}"  and is: "0x${certAuthLen;h4}"."
+		end
+		
+		#collect input message for signature verification
+		pubkeySignInput=${pubkeyTag}${length}${pubkeyTag2}${length2}"04"${PKX.CASD.ECKA}${PKY.CASD.ECKA}
+		signInput=${pubkeySignInput}${certSerialNoSignInput}${caIdSignInput}${subIdSignInput}${effDateSignInput}${expDateSignInput}${keyUsageSignInput}${csdiNoSignInput}${disDataSignInput}
+		
+		/set-var -g SIGNINPUT ${signInput}
+		
+		#/echo "Sign Input after parsing"
+		#/echo ${SIGNINPUT}
+		
+END
+
+##################################################################
+# verifyAndRecoverAmdE 											 #		
+#																 #
+# This function	verifies the CASD certificate and recovers  	 #
+# the public key												 #
+##################################################################
+DEFUN verifyAndRecoverAmdE GLOBAL
+		/app crypto
+		/set-var argCERT[*]
+		getOpt "cert:" argCERT "---"  ${argv[*];qq} 
+		#verify the signature
+		
+		#/echo ${CERT.CASD.SIGNATURE}
+		rSignlen=$(/expr ${CERT.CASD.SIGNATURE;l} / 2)
+		
+		rSign=${CERT.CASD.SIGNATURE;s0,${rSignlen}}
+		sSign=${CERT.CASD.SIGNATURE;s${rSignlen},${rSignlen}}
+		message=${SIGNINPUT}
+		
+		/echo "Verifying signature"
+		#/echo "Inputs for verification:::::"
+		#/echo "Inout message i:"
+		#/echo ${message}
+		
+		#/echo "CA public key -x"
+		#/echo ${ECC.CA.PKX}
+		
+		#/echo "CA public key -y"
+		#/echo ${ECC.CA.PKY}
+		#/echo "R part of sign"
+		#/echo ${rSign}
+		#/echo "S part of sign"
+		#/echo ${sSign}
+		
+		sign -m ECDSA -o verifySign -i ${message} -x ${ECC.CA.PKX} -y ${ECC.CA.PKY} -r ${rSign} -s ${sSign}
+		
+		#/echo ${VERIFY_SIGN}
+		
+		if $(/expr ${VERIFY_SIGN} != TRUE)
+			/error "Signature not verified"
+		end
+		
+		curpos=$(/expr ${argCERT;l} - 128)
+		#/echo ${curpos}
+		/set-var -g PKX.CASD.ECKA ${argCERT;s${curpos},64}
+		curpos=$(/expr ${curpos} + 64)
+		/set-var -g PKY.CASD.ECKA ${argCERT;s${curpos},64}
+		
+		return ${VERIFY_SIGN}
+	
+END
+
+########################################################################
+# composeAPPublicKeydataAmdE              							   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# Generates the ECC ephemeral key pair and Compose the public key data #
+# to be sent to APSD						                           #
+#                                                                      #
+# @int resp  the response by the APSD for PULL OBGKey.                 #
+# 								                                       #
+#                                                                      #
+######################################################################## 
+DEFUN composeAPPublicKeydataAmdE GLOBAL
+    /app crypto
+		
+		/echo "AP generating ephemeral key pair"
+		keygen -m ECC -o keypairgen
+		/set-var -g ephemeralPublicKeyX ${KEY_ECC_PublicKeyX}
+		/set-var -g ephemeralPublicKeyY ${KEY_ECC_PublicKeyY}
+		/set-var -g ephemeralPrivateKey ${KEY_ECC_PrivateKey}
+		
+		#/echo "ephemeralPublicKeyX"
+		#/echo ${ephemeralPublicKeyX}
+		#/echo "ephemeralPublicKeyY"
+		#/echo ${ephemeralPublicKeyY}
+		#/echo "ephemeralPrivateKey"
+		#/echo ${ephemeralPrivateKey}
+		/echo "composing data for set up of keyset"
+		#Reading data from keydata
+		
+		scenario=${SCENARIO_IDENTIFIER}${SCENARIO_PARAMETERS}
+		#/echo "Scenario: "${scenario}
+		scenariolen=$(/expr ${scenario;l} / 2)
+		dgidata="90"${scenariolen;h2}${scenario}
+		#/echo ${dgidata}
+		
+		keyusagelen=$(/expr ${KEY_USAGE_QUALIFIER;l} / 2)
+		#/echo "KEY_USAGE_QUALIFIER"
+		#/echo ${KEY_USAGE_QUALIFIER}
+		#/echo "key usage len : "
+		#/echo ${keyusagelen}
+		dgidata=${dgidata}"95"${keyusagelen;h2}${KEY_USAGE_QUALIFIER}
+		#/echo ${dgidata}
+		
+		if $(/expr ${KEY_ACCESS} != "N/A")
+			keyaccesslen=$(/expr ${KEY_ACCESS;l} / 2)
+			#/echo ${KEY_ACCESS}
+			#/echo ${keyaccesslen}
+			dgidata=${dgidata}"96"${keyaccesslen;h2}${KEY_ACCESS}
+			#/echo ${dgidata}
+		end
+		
+		
+		keytypelen=$(/expr ${KEY_TYPE;l} / 2)
+		dgidata=${dgidata}"80"${keytypelen;h2}${KEY_TYPE}
+		#/echo "KEY_TYPE : "${KEY_TYPE}
+		#/echo ${dgidata}
+		
+		keyLengthlen=$(/expr ${KEY_LENGTH;l} / 2)
+		dgidata=${dgidata}"81"${keyLengthlen;h2}${KEY_LENGTH}
+		#/echo ${dgidata}
+		
+		if $(/expr ${KEY_IDENTIFIER} != "N/A")
+			keyidentifierlen=$(/expr ${KEY_IDENTIFIER;l} / 2)
+			dgidata=${dgidata}"82"${keyidentifierlen;h2}${KEY_IDENTIFIER}
+			#/echo ${dgidata}
+		end
+		
+		if $(/expr ${KEY_VERSION_NUMBER} != "N/A")
+			keyversionNolen=$(/expr ${KEY_VERSION_NUMBER;l} / 2)
+			dgidata=${dgidata}"83"${keyversionNolen;h2}${KEY_VERSION_NUMBER}
+			#/echo ${dgidata}
+		end
+		
+		if $(/expr ${SEQUENCE_COUNTER} != "N/A")
+			seqCounterlen=$(/expr ${SEQUENCE_COUNTER;l} / 2)
+			dgidata=${dgidata}"91"${seqCounterlen;h2}${SEQUENCE_COUNTER}
+			#/echo ${dgidata}
+		end
+		
+		if $(/expr ${KEY_VERSION_NUMBER} != "N/A")
+			sdinlen=$(/expr ${SDIN;l} / 2)
+			dgidata=${dgidata}"45"${sdinlen;h2}${SDIN}
+			#/echo ${dgidata}
+		end
+		
+		if $(/expr ${SCENARIO_PARAMETERS} == 04)
+			hostidlen=$(/expr ${HOST_ID;l} / 2)
+			dgidata=${dgidata}"84"${hostidlen;h2}${HOST_ID}
+		end
+		
+		dgiA6length=$(/expr ${dgidata;l} / 2)
+		#/echo "dgiA6length"
+		#/echo ${dgiA6length}
+		dgiA6="A6"${dgiA6length;h2}${dgidata}
+		/set-var -g DGI00A6 ${dgiA6}
+		#/echo ${dgiA6}
+		
+		#composing DGI7F49
+		apPublicKey="04"${ephemeralPublicKeyX}${ephemeralPublicKeyY}
+		apPublicKeyLen=$(/expr ${dgidata;l} / 2)
+		dgipubdata="7F49"${apPublicKeyLen;h2}${apPublicKey}
+		#/echo ${dgipubdata}
+		
+		dgidata=${dgipubdata}${dgiA6}
+		/set-var -g DGI ${dgidata}
+		
+		#/echo ${DGI}
+		return ${DGI}
+
+END
+
+########################################################################
+# deriveKeySetOffcard              							           #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# Generates the ECC ephemeral key pair and Compose the public key data #
+# to be sent to APSD						                           #
+#                                                                      #
+# @int resp  the response by the APSD for PULL OBGKey.                 #
+# 								                                       #
+#                                                                      #
+######################################################################## 
+#calculation of Shared secret and derivation of keyset in offcard
+DEFUN deriveKeySetOffcard GLOBAL
+		/set-var drandom[*]
+		/set-var argA6[*]
+		getOpt "drandom:" drandom "A6:" argA6 "---"  ${argv[*];qq} 
+		/app crypto
+		
+		/echo "AP calculating shared secret"
+		#/echo "ephemeralPrivateKey"
+		#/echo ${ephemeralPrivateKey}
+		keygen -m ECC -o calcShs -d ${ephemeralPrivateKey} -x ${PKX.CASD.ECKA} -y ${PKY.CASD.ECKA}
+		if $(/expr ${SCENARIO_PARAMETERS} == 04)
+			keygen -m RSA -p 03 -l 196
+			/set-var -g oncardDR ${KEY_RSA_PublicKey;s6,16}
+		end
+		sharedInfo="01"${ECC_SharedSecret}${KEY_USAGE_QUALIFIER}${KEY_TYPE}${KEY_LENGTH}${oncardDR}${HOST_ID}${CARD_IMAGE_NUMBER}${ISSUER_IDENTIFICATION_NUMBER}
+		
+		/echo "Deriving keyset"
+		output1=$(hash -m SHA-256 ${sharedInfo})
+		receiptKey=${output1;s0,32}
+		sEncKey=${output1;s32,32}
+		sharedInfo="02"${ECC_SharedSecret}${KEY_USAGE_QUALIFIER}${KEY_TYPE}${KEY_LENGTH}${oncardDR}${HOST_ID}${CARD_IMAGE_NUMBER}${ISSUER_IDENTIFICATION_NUMBER}
+		
+		output2=$(hash -m SHA-256 ${sharedInfo})
+		sMacKey=${output2;s0,32}
+		dekKey=${output2;s32,32}
+		
+		#calculate receipt
+		receiptGen=$(mac -m M3 -p M2 -k ${receiptKey} ${argA6})
+		
+		/echo "Receipt generated offcard"
+		/echo ${receiptGen}
+		return ${receiptGen}
+
+END
+
+########################################################################
+# _composeApsdHashPattern   										   #	
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function composes the byte pattern used for hashing as input    #
+# to generate the APSD signature. Precondition is, that the variables  #
+# in CERT.AP.jcsh are either set by the user (Application Provider).   #
+#                                                                      #
+# @return the byte-pattern that can be used for hashing.               #
+#                                                                      #
+######################################################################## 
+DEFUN _composeApsdHashPattern GLOBAL
+	/set-var argMod[*]
+    /set-var argExp[*]
+    getOpt "mod:" argMod "exp:" argExp "---" ${argv[*];qq} 
+	
+  /app crypto
+	#Public Key
+	#Public Key Exponent
+	
+	isValidExp=$(/expr $(/expr ${argExp} == 03) || $(/expr ${argExp} == 010001))
+	if $(/expr ${isValidExp} != 1)
+		/error "Expected exponent '03' or '010001'. Exponent of PK.AP.CT/PK.AP.AUT is "${argExp}"."
+	end
+	casdExpLen=$(/expr ${argExp;l} / 2)
+	casdExpVal="82"${casdExpLen;h2}${argExp}
+	
+	#Public Key Modulus
+	modulusLen=$(/expr ${argMod;l} / 2)
+	if $(/expr ${modulusLen} != 128)
+		/error "Expected length of modulus of PK.AP.CT is 128bytes. Actual length is "${modulusLen}"."
+	end
+	casdModVal="818180"${argMod}
+	
+	pubKeyTagVal=${casdExpVal}${casdModVal}
+	pubKeyValLen=$(/expr ${pubKeyTagVal;l} / 2)
+	pubKeyVal="7F4981"${pubKeyValLen;h2}${pubKeyTagVal}
+	
+	#Certificate Serial Number
+	serNumLen=$(/expr ${CERT.AP.SERIAL;l} / 2)
+	serNumVal="93"${serNumLen;h2}${CERT.AP.SERIAL}
+	
+	#CA Identifier
+	caIdLen=$(/expr ${CERT.AP.CAID;l} / 2)
+	caIdVal="42"${caIdLen;h2}${CERT.AP.CAID}
+	
+	#Subj Id
+	subjIdLen=$(/expr ${CERT.AP.SUBJID;l} / 2)
+	subjIdVal="5F20"${subjIdLen;h2}${CERT.AP.SUBJID}
+	
+	#Key Usage
+	keyUseLen=$(/expr ${CERT.AP.KEYUSE;l} / 2)
+	keyUseVal="95"${keyUseLen;h2}${CERT.AP.KEYUSE}
+	
+	#Effective Date (conditional)
+	if $(/expr ${CERT.AP.EFFECTIVEDATE} != "N/A")
+		effDateLen=$(/expr ${CERT.AP.EFFECTIVEDATE;l} / 2)
+	  effDateVal="5F25"${effDateLen;h2}${CERT.AP.EFFECTIVEDATE}
+	else
+		effDateVal=""
+	end
+	
+	#Expiration Date
+	expDateLen=$(/expr ${CERT.AP.EXPIRATIONDATE;l} / 2)
+	expDateVal="5F24"${expDateLen;h2}${CERT.AP.EXPIRATIONDATE}
+
+	
+	#Discretionary Data (conditional)
+	if $(/expr ${CERT.AP.DISCRDATA} != "N/A")
+		discrDataLen=$(/expr ${CERT.AP.DISCRDATA;l} / 2)
+	  discrDataVal="53"${discrDataLen;h2}${CERT.AP.DISCRDATA}
+	else
+		discrDataVal=""
+	end
+	
+	finalHashPattern=${pubKeyVal}${serNumVal}${caIdVal}${subjIdVal}${keyUseVal}${effDateVal}${expDateVal}${discrDataVal}
+	return ${finalHashPattern}
+END
+
+DEFUN _calcApsdHash GLOBAL
+	/set-var argMod[*]
+    /set-var argExp[*]
+    getOpt "mod:" argMod "exp:" argExp "---" ${argv[*];qq} 
+	
+#construct the tag for signing
+  /app crypto
+	hashPattern=$(_composeApsdHashPattern -mod ${argMod} -exp ${argExp})
+	/app crypto
+	> 0
+  hash=$(hash -m SHA-1 ${hashPattern})
+  > 1
+	return ${hash}
+END
+
+########################################################################
+# composeApsdCert           										   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function composes the byte pattern for a Apsd Certificate.      #
+# Precondition is, that the variables                                  #
+# in CERT.AP.CT.jcsh are either set by the user (Application Provider).#
+# hand.                                                                #
+#                                                                      #
+# @return the byte-pattern that can be used for store data.            #
+#                                                                      #
+######################################################################## 
+DEFUN signAndcomposeApsdCert GLOBAL
+  /app crypto
+  
+  #check for the Amendment A scenarios
+    validExp=$(/expr $(/expr ${AmdA.SCENARIO} == 1) || $(/expr ${AmdA.SCENARIO} == 2A) ||  $(/expr ${AmdA.SCENARIO} == 2B))
+    if $(/expr ${validExp} != 1)
+  	 /error "Provide one of the valid Amendment A scenarios: 1 or  2A or  2B"
+    end
+	
+	certValue=""
+  #First the content for the correct length calculation later 
+  #Certificate Serial Number
+	serNumLen=$(/expr ${CERT.AP.SERIAL;l} / 2)
+	serNumVal="93"${serNumLen;h2}${CERT.AP.SERIAL}
+    certValue=${certValue}${serNumVal}
+    
+	#CA Identifier
+	caIdLen=$(/expr ${CERT.AP.CAID;l} / 2)
+	caIdVal="42"${caIdLen;h2}${CERT.AP.CAID}
+	certValue=${certValue}${caIdVal}
+	
+	#Subj Id
+	subjIdLen=$(/expr ${CERT.AP.SUBJID;l} / 2)
+	subjIdVal="5F20"${subjIdLen;h2}${CERT.AP.SUBJID}
+	certValue=${certValue}${subjIdVal}
+	
+	#Key Usage
+	keyUseLen=$(/expr ${CERT.AP.KEYUSE;l} / 2)
+	keyUseVal="95"${keyUseLen;h2}${CERT.AP.KEYUSE}
+	certValue=${certValue}${keyUseVal}
+	
+	#Effective Date (conditional)
+	if $(/expr ${CERT.AP.EFFECTIVEDATE} != "N/A") 
+		effDateLen=$(/expr ${CERT.AP.EFFECTIVEDATE;l} / 2)
+	  effDateVal="5F25"${effDateLen;h2}${CERT.AP.EFFECTIVEDATE}
+	else
+		effDateVal=""
+	end
+	certValue=${certValue}${effDateVal}
+	
+	#Expiration Date
+	expDateLen=$(/expr ${CERT.AP.EXPIRATIONDATE;l} / 2)
+	expDateVal="5F24"${expDateLen;h2}${CERT.AP.EXPIRATIONDATE}
+	certValue=${certValue}${expDateVal}
+	
+	#Discretionary Data (conditional)
+	if $(/expr ${CERT.AP.DISCRDATA} != "N/A")
+		discrDataLen=$(/expr ${CERT.AP.DISCRDATA;l} / 2)
+	  discrDataVal="53"${discrDataLen;h2}${CERT.AP.DISCRDATA}
+	else
+		discrDataVal=""
+	end
+	certValue=${certValue}${discrDataVal}
+	
+	#Signaturecontent
+	#Public Key
+	#Public Key Exponent
+	#Initialize the APSD certificate global variables depending on the Amd A Scenario
+	if $(/expr ${AmdA.SCENARIO} == 1)
+		hashKeyExp=${PK.AP.CT_EXPONENT}
+		hashKeyMod=${PK.AP.CT_MODULUS}
+	else
+		hashKeyExp=${PK.AP.AUT_EXPONENT}
+		hashKeyMod=${PK.AP.AUT_MODULUS}
+	end
+	
+	isValidExp=$(/expr $(/expr ${hashKeyExp} == 03) || $(/expr ${hashKeyExp} == 010001))
+	if $(/expr ${isValidExp} != 1)
+		/error "Expected exponent '03' or '010001'. Exponent of PK.AP.CT/PK.AP.AUT is "${hashKeyExp}"."
+	end
+	casdExpLen=$(/expr ${hashKeyExp;l} / 2)
+	casdExpVal="82"${casdExpLen;h2}${hashKeyExp}
+	
+	#Public Key Modulus
+	modulusLen=$(/expr ${hashKeyMod;l} / 2)
+	if $(/expr ${modulusLen} != 128)
+		/error "Expected length of modulus of PK.AP.CT/PK.AP.AUT is 128bytes. Actual length is "${modulusLen}"."
+	end
+	casdModVal="818180"${hashKeyMod}
+	pubKeyTagVal=${casdExpVal}${casdModVal}
+	pubKeyValLen=$(/expr ${pubKeyTagVal;l} / 2)
+	pubKeyVal="7F4981"${pubKeyValLen;h2}${pubKeyTagVal}
+  
+  hash=$(_calcApsdHash -mod ${hashKeyMod} -exp ${hashKeyExp})
+  #value to encrypt/signed with SK.CA.AUT
+	expLen=$(/expr ${SK.CA.AUT_EXPONENT;l} / 2)
+	keyParam=80${SK.CA.AUT_MODULUS}${expLen;h2}${SK.CA.AUT_EXPONENT}
+	/app crypto
+	signVal=6A${pubKeyVal;s0,212}${hash}BC
+	> 0
+	signDecr=$(encrypt -m RSA -p NOPAD -k ${keyParam} ${signVal})
+	> 3
+	CERT.AP.SIGNATURE=${signDecr}
+	signValLen=$(/expr ${signDecr;l} / 2)
+	signVal="5F3781"${signValLen;h2}${CERT.AP.SIGNATURE}
+	certValue=${certValue}${signVal}
+	
+	#Remainder
+	remainder=${pubKeyVal;s212,1122}
+	CERT.AP.REMAINDER=${remainder}
+	remainderLen=$(/expr ${remainder;l} / 2)
+	remainderVal="5F3881"${remainderLen;h2}${remainder}
+	certValue=${certValue}${remainderVal}
+	
+	#the final certificate
+	CERT.AP.TAG="7F21"
+	certLen=$(/expr ${certValue;l} / 2)
+	certVal=${CERT.AP.TAG}"81"${certLen;h2}${certValue}
+
+	#Add the '00DE' DGI
+	certLen=$(/expr ${certVal;l} / 2)
+	certVal="00DE81"${certLen;h2}${certVal}
+	
+	return ${certVal}
+END
+
+########################################################################
+# composeKeyPull          											   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function composes the data based on the global data structure   #
+# APSD.PULL.SK.*                                                       #
+#                                                                      #
+# @return the byte-pattern that can be used for store data.            #
+#                                                                      #
+######################################################################## 
+DEFUN composeKeyPull GLOBAL
+  #all mandatory data is fixed, just add the optional stuff
+		keypulldata=900101950110800180810110
+		if $(/expr ${APSD.PULL.SK.KEYVERSION} != "N/A")
+			keyVerLenLen=${APSD.PULL.SK.KEYVERSION;l}
+			if $(/expr ${keyVerLenLen} != 2)
+				/error "The Key Version Number must be 1 byte."
+			end
+			keypulldata=${keypulldata}8301${APSD.PULL.SK.KEYVERSION}
+		end
+		if $(/expr ${APSD.PULL.SK.COUNTERINIT} != "N/A")
+			counterInitStrLen=${APSD.PULL.SK.COUNTERINIT;l}
+			if $(/expr $(/expr ${counterInitStrLen} != 4) && $(/expr ${counterInitStrLen} != 10))
+				/error "The counter init value must be either 2 byte or 5 byte long."
+			end
+			counterInitLen=$(/expr ${counterInitStrLen} / 2)
+			keypulldata=${keypulldata}91${counterInitLen;h2}${APSD.PULL.SK.COUNTERINIT}
+		end
+		if $(/expr ${APSD.PULL.SK.SECDOMIMGNR} != "N/A")
+			secDomImgNrStrLen=${APSD.PULL.SK.SECDOMIMGNR;l}
+			if $(/expr ${secDomImgNrStrLen} > 8)
+				/error "The security domain image number is only allowed to be 8 bytes long."
+			end
+			secDomImgNrLen=$(/expr ${secDomImgNrStrLen} / 2}
+			keypulldata=${keypulldata}45${secDomImgNrLen;h2}${APSD.PULL.SK.SECDOMIMGNR}
+		end
+		
+		keyPulldatalen=$(/expr ${keypulldata;l} / 2)
+		keypulldata=A6${keyPulldatalen;h2}${keypulldata}
+		
+		keyPulldatalen=$(/expr ${keypulldata;l} / 2)
+		keypulldata=00A6${keyPulldatalen;h2}${keypulldata}
+		
+		return ${keypulldata}
+END
+
+########################################################################
+# _decOBKG                											   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# Decrypts the value in the parameter encOBGK with SK.AP.CT and returns#
+# the result.                                                          #
+# @int encOBGK  a 128 byte value containing the ecrypted OBGK.         #
+# @return the decrypted value of encOBGK.                              #
+#                                                                      #
+######################################################################## 
+DEFUN _decOBKG GLOBAL
+    /app crypto
+ 		/set-var argOBGK[*]
+		getOpt "encOBGK:" argOBGK  "---"  ${argv[*];qq}
+		
+		keyParam=80${SK.AP.CT_MODULUS}80${SK.AP.CT_EXPONENT}
+		> 0
+		OBGK=$(decrypt -m RSA -p ${OBGKRSAPAD} -k ${keyParam} ${argOBGK})
+		> 1
+		return ${OBGK}
+END
+
+########################################################################
+# decryptSign              											   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# Decrypts the OBGK signature with PK.CASD.AUT.                        #
+#                                                                      #
+# @int sign  the signature to decrypt.                                 #
+# @return the decrypted signature.                                     #
+#                                                                      #
+######################################################################## 
+DEFUN decryptSign GLOBAL
+    /app crypto
+		/set-var argSign[*]
+		getOpt "sign:" argSign  "---"  ${argv[*];qq}
+		
+		expLen=$(/expr ${PK.CASD.AUT_EXPONENT;l} / 2)
+		keyParam=80${PK.CASD.AUT_MODULUS}${expLen;h2}${PK.CASD.AUT_EXPONENT}
+		> 0
+		signDecr=$(decrypt -m RSA -p NOPAD -k ${keyParam} ${argSign})
+		> 1
+		return ${signDecr}
+END
+
+
+########################################################################
+# recoverOBGK              											   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                -  #
+# Recovers the OBGK from the OBGK signature received from the APSD.    #
+#                                                                      #
+# @int resp  the response by the APSD for PULL OBGKey.                 #
+# @return the 16byte random value.                                     #
+#                                                                      #
+######################################################################## 
+DEFUN recoverOBGK GLOBAL
+    /app crypto
+		/set-var argRESP[*]
+		getOpt "resp:" argRESP  "---"  ${argv[*];qq}		
+		
+		#very blunt way to parse the tlv.
+		#we know the exact content and the lengths are fixed.
+		#so I access the fields directly per index. 
+		signature=${argRESP;s2,256}
+		remainder=${argRESP;s260,1000}
+		#decrypt the signature
+		signature=$(decryptSign -sign ${signature})
+		#the hash inside the signature
+		hash=${signature;s214,40}
+		#reconstructing the original message
+		msg=${signature;s2,212}${remainder}
+		#calculate the message-hash
+		msgHash=$(hash -m SHA-1 ${msg})
+		#verify the calculated hash with the stored hash.
+		if $(/expr ${hash} != ${msgHash})
+			return "Validation failure!"
+		end
+		#retrieve the encrypted OBGK
+		encOBGKStart=$(/expr ${msg;l} - 256)
+		encOBGK=${msg;s${encOBGKStart},256}
+		#decrypt the OBGK
+		OBGK=$(_decOBKG -encOBGK ${encOBGK})
+		
+		return ${OBGK}
+END
+
+
+########################################################################
+# composeKeyPush          											   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                   #
+# This function composes the data based on the global data structure   #
+# APSD.PUSH.SK.*                                                       #
+#                                                                      #
+# @return the byte-pattern that can be used for store data.            #
+#                                                                      #
+######################################################################## 
+DEFUN composeKeyPush GLOBAL
+  #all mandatory data is fixed, just add the optional stuff
+		keypushdata=900102950110800180810110
+		
+		if $(/expr ${APSD.PUSH.SK.KEYVERSION} != "N/A")
+			keyVerLenLen=${APSD.PUSH.SK.KEYVERSION;l}
+			if $(/expr ${keyVerLenLen} != 2)
+				/error "The Key Version Number must be 1 byte."
+			end
+			keypushdata=${keypushdata}8301${APSD.PUSH.SK.KEYVERSION}
+		end
+		if $(/expr ${APSD.PUSH.SK.COUNTERINIT} != "N/A")
+			counterInitStrLen=${APSD.PUSH.SK.COUNTERINIT;l}
+			if $(/expr $(/expr ${counterInitStrLen} != 4) && $(/expr ${counterInitStrLen} != 10))
+				/error "The counter init value must be either 2 byte or 5 byte long."
+			end
+			counterInitLen=$(/expr ${counterInitStrLen} / 2)
+			keypushdata=${keypushdata}91${counterInitLen;h2}${APSD.PUSH.SK.COUNTERINIT}
+		end
+		if $(/expr ${APSD.PUSH.SK.SECDOMIMGNR} != "N/A")
+			secDomImgNrStrLen=${APSD.PUSH.SK.SECDOMIMGNR;l}
+			if $(/expr ${secDomImgNrStrLen} > 8)
+				/error "The security domain image number is only allowed to be 8 bytes long."
+			end
+			secDomImgNrLen=$(/expr ${secDomImgNrStrLen} / 2}
+			keypushdata=${keypushdata}45${secDomImgNrLen;h2}${APSD.PUSH.SK.SECDOMIMGNR}
+		end
+		
+		keyPushdatalen=$(/expr ${keypushdata;l} / 2)
+		keypushdata=A6${keyPushdatalen;h2}${keypushdata}
+		
+		keyPushdatalen=$(/expr ${keypushdata;l} / 2)
+		keypushdata=00A6${keyPushdatalen;h2}${keypushdata}
+		
+		return ${keypushdata}
+END
+
+########################################################################
+# encryptSessionKeys          										   #
+# 				                                                       #
+# Version: 0.1														   #
+# This function gets the session keys from the off-card key store and  #
+# returns the encrypted keys										   #
+#                                                                      #
+# @return the encrypted keys.            							   #
+#                                                                      #
+######################################################################## 
+DEFUN encryptSessionKeys GLOBAL
+		/set-var argEnc[*]
+		/set-var argMac[*]
+		/set-var argDek[*]
+		
+		getOpt "enc:" argEnc "mac:" argMac "dek:" argDek "---"  ${argv[*];qq} 
+	
+	#check for the Amendment A scenarios
+	validExp=$(/expr $(/expr ${AmdA.SCENARIO} == 1) || $(/expr ${AmdA.SCENARIO} == 2A) ||  $(/expr ${AmdA.SCENARIO} == 2B))
+	if $(/expr ${validExp} != 1)
+		/error "Provide one of the valid Amendment A scenarios: 1 or  2A or  2B"
+	end	
+	
+	#enable the crypto plugin to make use of the encrypt function
+	/app crypto
+	
+	#concatenate the input keys to get 48byte keydata
+	KeyData=${argEnc}${argMac}${argDek}
+   
+    #Encrypt the keydata
+	expLen=$(/expr ${PK.CASD.CT_EXPONENT;l} / 2)
+	keyParam=80${PK.CASD.CT_MODULUS}${expLen;h2}${PK.CASD.CT_EXPONENT}
+	encryptedKeyData=$(encrypt -m RSA -p ${OBGKRSAPAD} -k ${keyParam} ${KeyData})
+	
+	#Append DGI 8010 tag
+	len=$(/expr ${encryptedKeyData;l} / 2)
+	result=8010${len;h2}${encryptedKeyData}
+	
+	return ${result}
+END
+
+########################################################################
+# signSecureChannelKeys           									   #
+# 				                                                       #
+# Version: 0.1														   #
+# This function adds signature to the encrypted secure channel keys    #
+# and returns it.										               #
+# @input DGI 00A6, 8010 inputs to sign the secure channel keys         #
+# @return the signed secure channel keys.            				   #
+#                                                                      #
+######################################################################## 
+DEFUN signSecureChannelKeys GLOBAL
+		/set-var arg00A6[*]
+		/set-var arg8010[*]
+		getOpt "00A6:" arg00A6 "8010:" arg8010  "---"  ${argv[*];qq} 
+	
+	#DGI 00A6, 8010 inputs to sign the secure channel keys
+	a6Len=$(/expr ${arg00A6;l} / 2)
+	a8010len=$(/expr ${arg8010;l} / 2)
+	
+	#prepare input for the hash function
+	hashinput=${a6Len;h2}${arg00A6}${a8010len;h2}${arg8010}
+	
+	#enable the crypto plugin to make use of the hash, encrypt functions
+	/app crypto
+
+	#obtain hash
+    hashResult=$(hash -m SHA-1 ${hashinput})
+	
+	expLen=$(/expr ${SK.AP.AUT_EXPONENT;l} / 2)
+	keyParam=80${SK.AP.AUT_MODULUS}${expLen;h2}${SK.AP.AUT_EXPONENT}
+	
+	#Encrypt the hash result 
+	encryptedSignedKeyData=$(encrypt -m RSA -p ${OBGKRSAPAD} -k ${keyParam} ${hashResult})
+	
+	len=${encryptedSignedKeyData;l}
+	#Append tag 9E
+	result=9E${len;h2}${encryptedSignedKeyData}
+	
+	return ${result}
+	
+END
+
+########################################################################
+# loadAPSymmetricKey          										   #
+# 				                                                       #
+# Version: 0.1														   #
+# This function encrypts the AP Symmetric key using CASD Symmetric key #
+# and adds signature.       									       #
+#  								   									   #
+#                                                                      #
+# @return the signed and encrypted key.            				       #
+#                                                                      #
+######################################################################## 
+DEFUN loadAPSymmetricKey GLOBAL
+	#all mandatory data is fixed, just add the optional stuff
+	#compose DGI '00B8' meta-info of KS.AP.CT
+		
+	#Meta info of AP symmetric key
+	keydata=b809950140800180810110
+				
+	#add DGI '00B8' tag
+	len=$(/expr ${keydata;l} / 2)
+	metainfo=00b8${len;h2}${keydata}
+		
+	#compose DGI '80B8' encrypted value of KS.AP.CT	
+	#enable the crypto plugin to make use of the encrypt function
+	/app crypto
+	
+    #Encrypt the symmetric key KS.AP.CT using 16byte CASD symmetric key.
+	#Encrypt using Triple DES algorithm, encrypt command in JCShell chooses Triple DES based on the key size.
+	/echo "Encrypting AP symmetric key"
+	encryptedKeyData=$(encrypt -m DES/ECB -k ${KS.CASD.CT} ${KS.AP.CT})
+	
+	#Append DGI 80b8 tag
+	encryptLen=$(/expr ${encryptedKeyData;l} / 2)
+	encryptdata=80b8${encryptLen;h2}${encryptedKeyData}
+	
+	#Compose DGI '00AE'
+	#Concatenate the DGI '00B8',DGI '80B8'
+	signinput=${metainfo}${encryptdata}
+	
+	/echo "Signing DGI 00b8 and DGI 80b8"
+	
+	#Sign using MAC algorithm, Single DES+Final Triple DES, DES Padding
+	signresult=$(mac -m M3 -p M2 -k ${KS.CASD.AUT} ${signinput})
+	
+	signlen=$(/expr ${signresult;l} / 2)
+	#append the tag
+	signdata=8e${signlen;h2}${signresult}
+	
+	#append the tag
+	length=$(/expr ${signdata;l} / 2)
+	dgisignresult=00ae${length;h2}${signdata}
+	
+	#concatenate the DGI 00B8,80B8,00AE
+	finalstoredata=${metainfo}${encryptdata}${dgisignresult}
+	return ${finalstoredata}
+END
+
+##################################################################
+# verifyRecoverAPSymmKey 										 #		
+#																 #
+# This function	verifies the CASD certificate and recovers  	 #
+# the AP Symmetric key											 #
+##################################################################
+DEFUN verifyRecoverAPSymmKey GLOBAL
+        /set-var argRESP[*]
+		getOpt "SignedKey:" argRESP "---"  ${argv[*];qq} 
+		
+	# argRESP will be in the form of (00b8-0B-elevenbyte-metadata)(80b8-18-twentyfourbyte-encrypteddata)(00ae-len-8e-08-signed data)
+	# total length of argRESP is 28+54+26=108
+	# for verification of MAC, separate out 00b8 & 80b8 and apply mac with key ${KS.CASD.AUT}, and compare the 
+	# obtained mac result  with 00ae data, if both are same ,verification successful.
+	# Decrypt the dgi80b8 using KS.CASD.CT and recover KS.AP.CT
+
+		#Extract DGI '00AE','00B8' and DGI '80B8'
+		signIndexStart=$(/expr ${argRESP;l} - 16)
+		data=${argRESP;s0,82}
+		
+		signature=${argRESP;s${signIndexStart},16}
+		
+		#calc the signature
+		/echo "Verifying signature oncard"
+		calcsign=$(mac -m M3 -p M2 -k ${KS.CASD.AUT} ${data})
+		
+		#verify the calculated sign with the sign in the response.
+		if $(/expr ${calcsign} != ${signature})
+			return "Validation failure!"
+		end
+		#retrieve the encrypted KS.AP.CT
+		#encrypted KS.AP.CT is of 24 bytes, encrypted data length is 48,subtract 48+26 from total length  to get index of cipher text
+		encAPSymmKeyStart=$(/expr ${argRESP;l} - 74)
+		encAPSymmKey=${argRESP;s${encAPSymmKeyStart},48}
+		
+		#decrypt the AP Symmetric Key
+		/echo "Recover AP Symmetric key"
+		apSymmKey=$(decrypt -m DES/ECB -k ${KS.CASD.CT} ${encAPSymmKey})
+		
+		return ${apSymmKey}
+		
+END
+
+########################################################################
+# recoverOBGKNonPK              									   #
+# 				                                                       #
+# Version: 0.1														   #
+#	                                                                -  #
+# Recovers the OBGK from the OBGK signature received from the APSD.    #
+#                                                                      #
+# @int resp  the response by the APSD for PULL OBGKey.                 #
+# @return the 16byte random value.                                     #
+#                                                                      #
+######################################################################## 
+DEFUN recoverOBGKNonPK GLOBAL
+    /app crypto
+		/set-var argRESP[*]
+		getOpt "resp:" argRESP  "---"  ${argv[*];qq}		
+		
+		#very blunt way to parse the tlv.
+		#we know the exact content and the lengths are fixed.
+		#so I access the fields directly per index.
+	
+		#extract the signature in the response
+		signIndexStart=$(/expr ${argRESP;l} - 16)
+		#2 is length of signature
+		dataend=$(/expr ${signIndexStart} - 2)
+		data=${argRESP;s0,${dataend}}
+		signature=${argRESP;s${signIndexStart},16}
+		
+		#calc the signature
+		/echo "Signature verification offcard"
+		calcsign=$(mac -m M3 -p M2 -k ${KS.CASD.AUT} ${data})
+		
+		#verify the calculated sign with the sign in the response.
+		if $(/expr ${calcsign} != ${signature})
+			return "Validation failure!"
+		end
+		#retrieve the encrypted OBGK
+		#encrypted OGK is of 24 bytes, so length is 48, index is 48+2+16.
+		
+		encOBGKStart=$(/expr ${argRESP;l} - 66)
+		encOBGK=${argRESP;s${encOBGKStart},48}
+		
+		#decrypt the OBGK
+		/echo "Decrypting the RGK offcard"
+		OBGK=$(decrypt -m DES/CBC -k ${KS.AP.CT} ${encOBGK})
+
+		return ${OBGK}
+END

@@ -1,0 +1,43 @@
+#####################################################################
+# This example derives the secured channel keys off-card and encrypts 
+# , add signature and pushes to the card.
+
+/app crypto
+
+#initialise the global data structures which are needed
+myAPSD.Push.Key
+myCERT.CA.CT
+myCERT.AP
+
+if $(/expr ${AmdA.SCENARIO} == 2B)
+	#Use store-data command to send AP's temporary secure channel keys
+end
+
+#Initialize the secure channel session keys
+/set-var encKey 404142434445464748494a4b4c4d4e4f
+/set-var macKey 404142434445464748494a4b4c4d4e4f
+/set-var dekKey 404142434445464748494a4b4c4d4e4f
+
+#Compose the session key data to be be sent to card
+myPushData=$(composeKeyPush)
+
+#Encrypt the session keys
+myEncKeys=$(encryptSessionKeys -enc ${encKey} -mac ${macKey} -dek ${dekKey})
+
+if $(/expr ${AmdA.SCENARIO} == 2A)
+	#Sign the encrypted keys
+	mySign=$(signSecureChannelKeys -00A6 ${myPushData} -8010 ${myEncKeys})
+end
+
+/echo "Pushdata  "${myPushData}
+/echo "Encrypted session keys  "${myEncKeys}
+if $(/expr ${AmdA.SCENARIO} == 2A)
+	/echo "Signed keys  "${mySign}
+end
+
+#store-data ${myPushData}
+#store-data ${myEncKeys}
+
+if $(/expr ${AmdA.SCENARIO} == 2A)
+	#store-data ${mysign}
+end

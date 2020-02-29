@@ -1,0 +1,62 @@
+#########################################################
+# Global datastructures to support APSD
+
+###########################################################
+# CA and CASD keys
+/set-var -g PK.CA.AUT_MODULUS  "value of PK.CA.AUT_MODULUS"
+/set-var -g PK.CA.AUT_EXPONENT "value of PK.CA.AUT_EXPONENT"
+/set-var -g SK.CA.AUT_MODULUS  "value of SK.CA.AUT_MODULUS"
+/set-var -g SK.CA.AUT_EXPONENT "value of SK.CA.AUT_EXPONENT"
+# set the public CASD key for CERT.CASD.AUT generation.
+# recovered from CERT.CASD.AUT when CERT.CASD.AUT is verified. 
+/set-var -g PK.CASD.AUT_MODULUS  "PK.CASD.AUT_MODULUS"
+/set-var -g PK.CASD.AUT_EXPONENT "PK.CASD.AUT_EXPONENT"
+/set-var -g SK.CASD.AUT_MODULUS  "SK.CASD.AUT_MODULUS"
+/set-var -g SK.CASD.AUT_EXPONENT "SK.CASD.AUT_EXPONENT"
+
+###########################################################
+# Symmetric CASD keys for Non-public Key Scheme 
+
+# CASD Signature key
+/set-var -g KS.CASD.AUT "KS.CASD.AUT"
+
+# CASD Encryption key
+/set-var -g KS.CASD.CT "KS.CASD.CT"
+
+# set the public CASD key for CERT.CASD.CT generation.
+# recovered from CERT.CASD.CT when CERT.CASD.CT is verified. 
+
+/set-var -g PK.CASD.CT_MODULUS  "PK.CASD.CT_MODULUS"
+/set-var -g PK.CASD.CT_EXPONENT "PK.CASD.CT_EXPONENT"
+/set-var -g SK.CASD.CT_MODULUS  "SK.CASD.CT_MODULUS"
+/set-var -g SK.CASD.CT_EXPONENT "SK.CASD.CT_EXPONENT"
+
+###########################################################
+# CASD keys for Amendment E Scenario 3 
+
+/set-var -g PKX.CASD.ECKA  "PKX.CASD.ECKA"
+/set-var -g PKY.CASD.ECKA "PKY.CASD.ECKA"
+/set-var -g SK.CASD.ECKA "SK.CASD.ECKA"
+
+##########################################################################################
+# Global variables for CERT.CASD.AUTH,CERT.CASD.CT and CERT.CASD.ECKA                    #       
+# fill these when you want to create a CERT.CASD.AUTH/CERT.CASD.CT/CERT.CASD.ECKA        #
+# These will be set when a CERT.CASD.AUTH/CERT.CASD.CT//CERT.CASD.ECKA is parsed,        #
+# verfied and PK.CASD.AUT/PK.CASD.CT/PK/CASD/ECKA is recovered                           #
+##########################################################################################
+
+/set-var -g CERT.CASD.SERIAL "N/A"
+/set-var -g CERT.CASD.CAID "N/A"
+/set-var -g CERT.CASD.SUBJID "N/A"
+/set-var -g CERT.CASD.KEYUSE "N/A"
+#keep EFFECTIVEDATE on "N/A" when not used
+/set-var -g CERT.CASD.EFFECTIVEDATE "N/A"
+/set-var -g CERT.CASD.EXPIRATIONDATE "N/A"
+/set-var -g CERT.CASD.CASECDOMIMGNR "N/A"
+#keep DISCRDATA on "N/A" when not used
+/set-var -g CERT.CASD.DISCRDATA "N/A"
+
+#these values will be calculated or parsed
+/set-var -g CERT.CASD.TAG "N/A"
+/set-var -g CERT.CASD.SIGNATURE "N/A"
+/set-var -g CERT.CASD.REMAINDER "N/A"

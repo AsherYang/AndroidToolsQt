@@ -1,0 +1,54 @@
+#########################################################
+#    Data grouping identifier for set up of key set     #
+#########################################################
+
+#Scenario identifier will be set to 03
+#Scenario parameters can be either 01, 02,04
+
+#/set-var -g SCENARIO_IDENTIFIER "N/A"
+#/set-var -g SCENARIO_PARAMETERS "N/A"
+
+#key usage qualifier can be '5C' in case of one secure channel base key
+# or '10' for 3 secure channel keys
+/set-var -g KEY_USAGE_QUALIFIER  10
+
+#values for key_access can be 00,01,02
+#/set-var -g KEY_ACCESS "N/A"
+
+
+#/set-var -g KEY_TYPE "N/A"
+#/set-var -g KEY_LENGTH "N/A"
+#/set-var -g KEY_IDENTIFIER "N/A"
+#/set-var -g KEY_VERSION_NUMBER "N/A"
+#/set-var -g SEQUENCE_COUNTER "N/A"
+#/set-var -g SDIN "N/A"
+#/set-var -g HOST_ID "N/A"
+#/set-var -g KEY_ACCESS "N/A"
+#/set-var -g KEY_ACCESS "N/A"
+#/set-var -g KEY_ACCESS "N/A"
+
+
+/set-var -g SCENARIO_IDENTIFIER 03
+/set-var -g SCENARIO_PARAMETERS 01
+/set-var -g KEY_ACCESS 00
+/set-var -g KEY_IDENTIFIER 0A
+/set-var -g KEY_VERSION_NUMBER 0A
+/set-var -g SEQUENCE_COUNTER 00
+/set-var -g KEY_TYPE A9
+/set-var -g KEY_LENGTH 20
+/set-var -g SDIN ABCD
+
+/set-var -g CARD_IMAGE_NUMBER
+/set-var -g ISSUER_IDENTIFICATION_NUMBER
+
+
+#optional parameters
+
+#/set-var -g KEY_IDENTIFIER 
+#/set-var -g KEY_VERSION_NUMBER
+#/set-var -g SEQUENCE_COUNTER
+#/set-var -g SDIN
+#/set-var -g HOST_ID
+
+
+

@@ -1,0 +1,168 @@
+##########################################################################
+# These are helper-functions to m imic the oncard calculations for 
+# producing the response to the OBGK PULL.
+# just to store the 'onboard' generated number for later comparisons
+/set-var -g oncardOBGK "N/A"
+
+#generate a random number. Since the JCShell does not offer a random function,
+#I just misuse the RSA key generation for this.
+DEFUN _generateOBGK GLOBAL
+	/app crypto
+	> 0
+	keygen -m RSA -p 03 -l 196
+	> 1
+	
+  /set-var -g oncardOBGK ${KEY_RSA_PublicKey;s6,32}
+END
+
+##############################################################################
+# Encrypt the OBGK value.
+DEFUN _encOBGK GLOBAL
+		/app crypto
+		_generateOBGK
+		keyExpLen=$(/expr ${PK.AP.CT_EXPONENT;l} / 2)
+		keyParam=80${PK.AP.CT_MODULUS}${keyExpLen;h2}${PK.AP.CT_EXPONENT}
+		> 0
+		encOBGK=$(encrypt -m RSA -p ${OBGKRSAPAD} -k ${keyParam} ${oncardOBGK})
+		> 1
+		
+		return ${encOBGK}
+END
+
+###############################################################################
+# Compose the data for signing.
+DEFUN composeOBGKstruct GLOBAL
+		/set-var argA6[*]
+		getOpt "A6:" argA6 "---"  ${argv[*];qq}
+		
+		apsdLen=$(/expr ${APSD_AID;l} / 2)
+		a6Len=$(/expr ${argA6;l} / 2)
+		encOBGK=$(_encOBGK)
+		encLen=$(/expr ${encOBGK;l} / 2)
+		
+		return ${apsdLen;h2}${APSD_AID}${a6Len;h2}${argA6}${encLen;h2}${encOBGK}
+END
+
+################################################################################
+# execute the signing.
+DEFUN createOBGKSign GLOBAL
+	  /set-var argA6[*]
+		getOpt "A6:" argA6 "---"  ${argv[*];qq}
+		> 0
+		OBGKstruct=$(composeOBGKstruct -A6 ${argA6})
+		OBGKhash=$(hash -m SHA-1 ${OBGKstruct})
+		lastStrPos=$(/expr 256 - ${OBGKhash;l} - 4)
+		signForEnc=6A${OBGKstruct;s0,${lastStrPos}}${OBGKhash}BC
+		keyParam=80${SK.CASD.AUT_MODULUS}80${SK.CASD.AUT_EXPONENT}
+		/set-var -g OBGK.SIGNATURE $(encrypt -m RSA -p NOPAD -k ${keyParam} ${signForEnc})
+		/set-var -g OBGK.REMAINDER ${OBGKstruct;s${lastStrPos},1000}
+		> 1
+END
+
+
+##############################################################################
+# Encrypt the OBGK value.
+# using Triple DES algorithm CBC mode
+DEFUN _encOBGKNonPK GLOBAL
+		/app crypto
+		_generateOBGK
+		keyParam=${KS.AP.CT}
+		/echo "Encrypting RGK oncard"
+		encOBGK=$(encrypt -m DES/CBC -k ${keyParam} ${oncardOBGK})
+		return ${encOBGK}
+END
+
+###############################################################################
+# Compose the data for signing.
+DEFUN composeOBGKstructNonPK GLOBAL
+		/set-var argA6[*]
+		getOpt "A6:" argA6 "---"  ${argv[*];qq}
+		
+		apsdLen=$(/expr ${APSD_AID;l} / 2)
+		a6Len=$(/expr ${argA6;l} / 2)
+		encOBGK=$(_encOBGKNonPK)
+		encLen=$(/expr ${encOBGK;l} / 2)
+		
+		return ${apsdLen;h2}${APSD_AID}${a6Len;h2}${argA6}${encLen;h2}${encOBGK}
+END
+
+################################################################################
+# execute the signing.
+DEFUN createOBGKSignNonPK GLOBAL
+	  /set-var argA6[*]
+		getOpt "A6:" argA6 "---"  ${argv[*];qq}
+
+		OBGKstruct=$(composeOBGKstructNonPK -A6 ${argA6})
+		/set-var -g inputsigndata ${OBGKstruct}
+		/echo "Signing OBGK"
+		OBGKsign=$(mac -m M3 -p M2 -k ${KS.CASD.AUT} ${OBGKstruct})
+		OBGKsignlen=$(/expr ${OBGKsign;l} / 2)
+		result=${OBGKsignlen;h2}${OBGKsign}
+		/set-var -g OBGK.SIGNATURE ${result}
+
+END
+
+################################################################################
+DEFUN deriveKeySet GLOBAL
+		/set-var argA6[*]
+		getOpt "A6:" argA6 "---"  ${argv[*];qq}
+		/app crypto
+		
+		/echo "CASD calculating shared secret"
+		#/echo "SK.CASD.ECKA"
+		#/echo ${SK.CASD.ECKA}
+		#/echo "ephemeralPublicKeyX"
+		#/echo ${ephemeralPublicKeyX}
+		#/echo "ephemeralPublicKeyY"
+		#/echo ${ephemeralPublicKeyY}
+		
+		keygen -m ECC -o calcShs -d ${SK.CASD.ECKA} -x ${ephemeralPublicKeyX} -y ${ephemeralPublicKeyY}
+		if $(/expr ${SCENARIO_PARAMETERS} == 04)
+			keygen -m RSA -p 03 -l 196
+			/set-var -g oncardDR ${KEY_RSA_PublicKey;s6,16}
+		end
+		sharedInfo="01"${ECC_SharedSecret}${KEY_USAGE_QUALIFIER}${KEY_TYPE}${KEY_LENGTH}${oncardDR}${HOST_ID}${CARD_IMAGE_NUMBER}${ISSUER_IDENTIFICATION_NUMBER}
+		
+		#/echo "ECC_SharedSecret"
+		#/echo ${ECC_SharedSecret}
+		
+		#/echo "sharedInfo"
+		#/echo ${sharedInfo}
+		
+		/echo "Deriving keyset"
+		output1=$(hash -m SHA-256 ${sharedInfo})
+		#/echo "hash output"
+		#/echo ${output1}
+		
+		receiptKey=${output1;s0,32}
+		#/echo "receiptKey"
+		#/echo ${receiptKey}
+		sEncKey=${output1;s32,32}
+		#/echo "sEncKey"
+		#/echo ${sEncKey}		
+		sharedInfo="02"${ECC_SharedSecret}${KEY_USAGE_QUALIFIER}${KEY_TYPE}${KEY_LENGTH}${oncardDR}${HOST_ID}${CARD_IMAGE_NUMBER}${ISSUER_IDENTIFICATION_NUMBER}
+		
+		#/echo "sharedInfo"
+		#/echo ${sharedInfo}	
+		
+		output2=$(hash -m SHA-256 ${sharedInfo})
+		#/echo "Shared hash output 2"
+		#/echo ${output2}	
+		
+		sMacKey=${output2;s0,32}
+		#/echo "sMacKey"
+		#/echo ${sMacKey}	
+		
+		dekKey=${output2;s32,32}
+		#/echo "dekKey"
+		#/echo ${dekKey}
+
+		/echo "DGIA6 is:"
+		#/echo ${argA6}
+		
+		#calculate receipt
+		receipt=$(mac -m M3 -p M2 -k ${receiptKey} ${argA6})
+		
+		return ${receipt}                                                              
+		
+END

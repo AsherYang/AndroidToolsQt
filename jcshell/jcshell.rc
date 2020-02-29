@@ -1,0 +1,11 @@
+# Setting the local folder scripts as default folder for .jcsh scripts
+# for example my_script.jcsh can be called anytime by just typing my_script in the command prompt
+/echo setting scripts-folder to ./scripts ...
+/set-var path ./scripts
+
+/echo enabling modes echo and trace...
+/mode echo=off trace=on
+
+#enabling gp22 Amendment A support functions
+#gp22/gp22_AmdA
+

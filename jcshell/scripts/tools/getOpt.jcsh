@@ -1,0 +1,130 @@
+
+DEFUN __getOptHasParameter GLOBAL
+    /set-var p ${argv[0]}
+    while ${p;l} > 0
+      if "x${p;s0,1}x" == "x:x"
+        return true
+      end
+      /set-var p ${p;s1}
+    end
+    return false
+END
+DEFUN __getOptList GLOBAL
+    /set-var rc ""
+    /set-var p ${argv[0]}
+
+    while ${p;l} > 0
+      if "x${p;s0,1}x" == "x:x"
+        /set-var rc "${rc} "
+      else
+        /set-var rc "${rc}${p;s0,1}"
+      end
+      /set-var p ${p;s1}
+    end
+    
+    /set-var rc[*] ${rc}
+    return ${rc[1..]}
+END
+
+#
+# Usage: getOpt [<switch> <variable>]... --- [<CLI parameters> [--- <MoreOptions>] [<data>]...]
+# 
+#   <CLI parameters> are the paramters which are passed to the command / function which is
+#                    invoking 'getOpt()'.
+#   <MoreOptions>    are additional parameters which are passed back to the caller, i.e. not
+#                    parsed within this run of 'getOpt()'.
+#   <data>           is the data portion which is passed back to the caller.
+#   <switch>         is an identifier to initiate an option. It can be of arbitrary number of
+#                    characters. The following switch modes exist:
+#      -<switch>     Boolean switch, i.e. no option can be associated to this switch. The
+#                    <variable> attached to this switch gets incremented each time this
+#                    switch is seen in the command line.
+#      -<switch>:    This switch has an option, i.e. a position parameter such as 
+#                    '-f <filename>'. The position paramter, '<filename>' in the example before,
+#                    is being pushed on the stack variable attached to this switch.
+#      -<switch>:<choise.1>[:<choise.n>]
+#                    This switch has an option which can be one of the given choices. The
+#                    provided option is pushed on the stack variable attached to this switch.
+#                    Example: '-ppse:yes:no' given in switch, '-ppse yes' and '-ppse no' provided
+#                             in <CLI parameter> will pass while '-ppse tryIt' throws an error.
+#
+#   <variable>       Defines the variable in the name space of the caller which should be modified
+#                    if associated switch is seen in <CLI paramters>. This works best, if the 
+#                    <variable> is defined as an array on caller side. It may be initializes already.
+#
+# Return: the set of arguments which are not eaten by 'getOpt()' i.e. everything beyond 
+#         <CLI parameter>.
+#
+# Note: the parsing is case sensitive.
+#
+DEFUN getOpt GLOBAL
+    # 1. get list of options
+    /set-var options[*]
+    while "x${argv[0]}x" != "x---x"
+      /set-var options[#] ${argv[0..1];qq}
+      /set-var argv[*] ${argv[2..];qq}
+    end
+    /set-var argv[*] ${argv[1..];qq}
+
+    while ${argv[*];l} > 0
+        # end of options defined
+        if "x${argv[0]}x" == "x---x"
+            return ${argv[1..];qq}
+        end
+        
+        # no more options available
+        if "x${argv[0];s0,1}x" != "x-x"
+            return ${argv[*];qq}
+        end
+
+        /set-var opt ${argv[0];s1}
+        /set-var argv[*] ${argv[1..];qq}
+
+        /set-var i 0
+        /set-var optVar undef
+        while ${i} < ${options[*];l}
+           if ${opt} == ${options[${i}];s0,${opt;l}}
+             /set-var opt ${options[${i}]}
+             /set-var optVar ${options[$(/expr ${i} + 1)]}
+             break
+           end
+          /set-var i $(/expr ${i} + 2)
+        end
+        
+        if ${optVar;q} == "undef"
+          /error "Option '${opt}' not defined"
+        end
+        
+        # option with no parameter
+        if $(__getOptHasParameter ${opt}) == false
+            if "x${${optVar}[0]}x" == "xx"
+                /set-var ${optVar}[0] 0
+            end
+            /set-var ${optVar}[0] $(/expr ${${optVar}[0]} + 1)
+            continue
+        end
+        
+        /set-var arg ${argv[0];q}
+        /set-var argv[*] ${argv[1..];qq}
+
+        /set-var optList[*] $(__getOptList ${opt})
+        if ${optList[*];l} == 0
+            /set-var ${optVar}[#] ${arg;q}
+            continue
+        end
+        
+        /set-var valid false
+        for P ${optList[*]}
+          if ${P} == ${arg;q}
+            /set-var valid true
+          end
+        end
+        
+        if ${valid} != true
+            /error "Undefined option parameter '${arg}' provided"
+        end
+        /set-var ${optVar}[#] ${arg;q}
+    end
+
+    return ${argv[*];qq}                    
+end
