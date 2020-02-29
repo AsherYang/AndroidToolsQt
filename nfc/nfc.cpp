@@ -18,6 +18,7 @@ Nfc::Nfc(QWidget *parent) :
     getCplcBtn(new QPushButton()),
     writeAuthKeyBtn(new QPushButton()),
     checkAuthKeyBtn(new QPushButton()),
+    getFreeSpaceBtn(new QPushButton()),
     fileWatcher(new QFileSystemWatcher()),
     progressBar(new QProgressBar()) {
 
@@ -41,6 +42,10 @@ void Nfc::initUi() {
     checkAuthKeyBtn->setFixedSize(100, 30);
     checkAuthKeyBtn->connect(checkAuthKeyBtn, SIGNAL(clicked()), this, SLOT(checkAuthKeyBtnClick()));
 
+    getFreeSpaceBtn->setText(QString::fromUtf8("剩余空间"));
+    getFreeSpaceBtn->setFixedSize(100, 30);
+    getFreeSpaceBtn->connect(getFreeSpaceBtn, SIGNAL(clicked()), this, SLOT(getFreeSpaceBtnClick()));
+
     serverAuthKeyPathBtn->setText(QString::fromUtf8("导入密钥文件"));
     serverAuthKeyPathBtn->setMinimumHeight(25);
     serverAuthKeyPathBtn->connect(serverAuthKeyPathBtn, SIGNAL(clicked()), this, SLOT(serverAuthKeyBtnClick()));
@@ -63,6 +68,7 @@ void Nfc::initUi() {
     operBtnsLayout->addWidget(getCplcBtn);
     operBtnsLayout->addWidget(writeAuthKeyBtn);
     operBtnsLayout->addWidget(checkAuthKeyBtn);
+    operBtnsLayout->addWidget(getFreeSpaceBtn);
     mainLayout->addLayout(serverAuthKeyPathLayout);
     mainLayout->addWidget(logEdit);
     mainLayout->addLayout(operBtnsLayout);
@@ -441,7 +447,6 @@ void Nfc::checkAuthKeyBtnClick() {
 }
 
 void Nfc::batCheckKeySuccess() {
-    // TODO check key 之后需要delete log.txt  cplc.clear();
     QString checkKeyFailTip = QString::fromUtf8("校验密钥失败，请重试");
     QString checkKeyResultPath;
     checkKeyResultPath.append(jcshellDirPath).append("/batForTools/logCheckKeySuccess.txt");
@@ -512,6 +517,94 @@ void Nfc::batCheckKeySuccess() {
     }
 }
 
+/**
+ * @brief Nfc::getFreeSpaceBtnClick
+ */
+void Nfc::getFreeSpaceBtnClick() {
+    //4_check_key.bat中的语句全为调用次级vbs脚本，再由vbs调用子bat脚本，从而达到隐藏窗口的目的
+    showLog(QString::fromUtf8("正在获取SE剩余空间"));
+    showBusy(true);
+
+    QString workPath;
+    workPath.append(jcshellDirPath).append("/batForTools/");
+    QString batPath;
+    batPath.append(workPath).append("4_get_free_space.bat");
+    RunSysCmd runCmd;
+    runCmd.callBatScript(batPath);
+    // file watcher
+    fileWatcher->connect(fileWatcher, SIGNAL(directoryChanged(QString)), this, SLOT(batGetFreeSpaceSuccess()));
+    //fileWatcher->connect(fileWatcher, SIGNAL(fileChanged(QString)), this, SLOT(batOperateSuccess(QString)));
+    fileWatcher->addPath(workPath);
+}
+
+/**
+ * @brief Nfc::batGetFreeSpaceSuccess
+ * bat script get space success
+ */
+void Nfc::batGetFreeSpaceSuccess() {
+    QString getFreeSpaceFailTip = QString::fromUtf8("获取剩余空间失败，请重试");
+    QString getFreeSpaceResultPath;
+    getFreeSpaceResultPath.append(jcshellDirPath).append("/batForTools/logSpaceSuccess.txt");
+    QFile getFreeSpaceResultFile(getFreeSpaceResultPath);
+    //qDebug() << "batCheckKeySuccess exist:" << checkKeyResultFile.exists();
+    if (getFreeSpaceResultFile.exists()) {
+        QString logFilePath;
+        logFilePath.append(jcshellDirPath).append("/batForTools/log.txt");
+        QFile logFile(logFilePath);
+        if (!logFile.exists()) {
+            showLog(getFreeSpaceFailTip);
+            showBusy(false);
+            logFile.close();
+            getFreeSpaceResultFile.remove();
+            getFreeSpaceResultFile.close();
+            return;
+        }
+        // read log file data.
+        bool open = logFile.open(QIODevice::ReadWrite | QIODevice::Text);
+        if (!open) {
+            showLog(getFreeSpaceFailTip);
+            showBusy(false);
+            logFile.close();
+            getFreeSpaceResultFile.remove();
+            getFreeSpaceResultFile.close();
+            return;
+        }
+
+        QString flashMemory;
+        QString indexNum;
+        long freeSpace = 0;
+        bool ok = false;
+        QRegExp re("\\[Send\\]0xFE21DF251E[a-zA-Z0-9]{24}([a-zA-Z0-9]{12})([a-zA-Z0-9]{12})[a-zA-Z0-9]{12}9000");
+        QString allDataTmp(logFile.readAll());
+        // get free space success
+        if (allDataTmp.contains(re)) {
+            flashMemory = re.cap(1);
+            indexNum = re.cap(2);
+            //qDebug() << "free space:"<< flashMemory << ",index num:" << indexNum;
+            if (flashMemory.startsWith("0004") && indexNum.startsWith("0304")) {
+                flashMemory = flashMemory.remove(0, 4);
+                indexNum = indexNum.remove(0, 4);
+                freeSpace = flashMemory.toLong(&ok, 16) - indexNum.toInt(&ok, 16) * 16;
+            }
+            //qDebug() << "clean free space:"<< flashMemory << ",index num:" << indexNum << " ,free space:" << freeSpace << " ,ok:" << ok;
+            if (ok && freeSpace > 0) {
+                showLog("剩余空间大小为：" + QString::number(freeSpace) + "(Bytes), " + QString::number(freeSpace/1024) + "(Kb)");
+            } else {
+                showLog("剩余空间数据解析失败,请重试");
+            }
+        } else {
+            showLog(getFreeSpaceFailTip);
+        }
+
+        showBusy(false);
+        logFile.remove();
+        logFile.close();
+        getFreeSpaceResultFile.remove();
+        getFreeSpaceResultFile.close();
+    }
+
+}
+
 void Nfc::showBusy(const bool &busy) {
     if (!busy) {
         progressBar->setVisible(false);
@@ -540,6 +633,7 @@ Nfc::~Nfc() {
     delete getCplcBtn;
     delete writeAuthKeyBtn;
     delete checkAuthKeyBtn;
+    delete getFreeSpaceBtn;
     delete serverAuthKeyPathLayout;
     delete operBtnsLayout;
     delete mainLayout;

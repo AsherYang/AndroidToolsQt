@@ -1,0 +1,5 @@
+/term Remote
+/card
+/select A000000151000000
+/send 80ca00fe02df2500
+/close

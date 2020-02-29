@@ -33,9 +33,11 @@ public slots:
     void serverAuthKeyBtnClick();
     void writeAuthKeyBtnClick();
     void checkAuthKeyBtnClick();
+    void getFreeSpaceBtnClick();
     void batGetCplcSuccess();
     void batAuthKeySuccess();
     void batCheckKeySuccess();
+    void batGetFreeSpaceSuccess();
 
 private:
     void initUi();
@@ -58,6 +60,7 @@ private:
     QPushButton *getCplcBtn = nullptr;
     QPushButton *writeAuthKeyBtn = nullptr;
     QPushButton *checkAuthKeyBtn = nullptr;
+    QPushButton *getFreeSpaceBtn = nullptr;
     QFileSystemWatcher *fileWatcher = nullptr;
     QProgressBar *progressBar;
     CpFilethread *cpBatFileThread = nullptr;
