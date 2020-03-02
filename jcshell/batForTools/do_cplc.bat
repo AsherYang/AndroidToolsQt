@@ -6,5 +6,3 @@ call jcshell.bat -f ./scripts/setkey0.jcsh
 del null
 rem start notepad ./scripts/setkey4.jcsh
 echo "-------------get cplc end-----------">>%logCplcSuccess%
-pause
-exit

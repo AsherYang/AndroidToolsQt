@@ -3,6 +3,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QResource>
+#include <QMessageBox>
 #include "utils/fileutil.h"
 
 #pragma execution_character_set("utf-8")
@@ -19,6 +20,7 @@ Nfc::Nfc(QWidget *parent) :
     writeAuthKeyBtn(new QPushButton()),
     checkAuthKeyBtn(new QPushButton()),
     getFreeSpaceBtn(new QPushButton()),
+    formatEseBtn(new QPushButton()),
     fileWatcher(new QFileSystemWatcher()),
     progressBar(new QProgressBar()) {
 
@@ -46,6 +48,10 @@ void Nfc::initUi() {
     getFreeSpaceBtn->setFixedSize(100, 30);
     getFreeSpaceBtn->connect(getFreeSpaceBtn, SIGNAL(clicked()), this, SLOT(getFreeSpaceBtnClick()));
 
+    formatEseBtn->setText(QString::fromUtf8("清空ESE"));
+    formatEseBtn->setFixedSize(100, 30);
+    formatEseBtn->connect(formatEseBtn, SIGNAL(clicked()), this, SLOT(formatEseBtnClick()));
+
     serverAuthKeyPathBtn->setText(QString::fromUtf8("导入密钥文件"));
     serverAuthKeyPathBtn->setMinimumHeight(25);
     serverAuthKeyPathBtn->connect(serverAuthKeyPathBtn, SIGNAL(clicked()), this, SLOT(serverAuthKeyBtnClick()));
@@ -69,6 +75,7 @@ void Nfc::initUi() {
     operBtnsLayout->addWidget(writeAuthKeyBtn);
     operBtnsLayout->addWidget(checkAuthKeyBtn);
     operBtnsLayout->addWidget(getFreeSpaceBtn);
+    operBtnsLayout->addWidget(formatEseBtn);
     mainLayout->addLayout(serverAuthKeyPathLayout);
     mainLayout->addWidget(logEdit);
     mainLayout->addLayout(operBtnsLayout);
@@ -108,8 +115,8 @@ void Nfc::getCplcBtnClick() {
     workPath.append(jcshellDirPath).append("/batForTools/");
     QString batPath;
     batPath.append(workPath).append("1_get_cplc.bat"); /*pnx_connect_jrcp.bat*/
-    RunSysCmd runCmd;
-    runCmd.callBatScript(batPath);
+    RunSysCmdThread runCmd(batPath);
+    runCmd.start();
 
     QString cplcResultPath;
     cplcResultPath.append(workPath).append("logCplcSuccess.txt");
@@ -360,8 +367,8 @@ void Nfc::writeAuthKeyBtnClick() {
     workPath.append(jcshellDirPath).append("/batForTools/");
     QString batPath;
     batPath.append(workPath).append("2_auth_key.bat");
-    RunSysCmd runCmd;
-    runCmd.callBatScript(batPath);
+    RunSysCmdThread runCmd(batPath);
+    runCmd.start();
     // file watcher
     //QString authKeyResultPath;
     //authKeyResultPath.append(workPath).append("logAuthKeySuccess.txt");
@@ -436,8 +443,8 @@ void Nfc::checkAuthKeyBtnClick() {
     workPath.append(jcshellDirPath).append("/batForTools/");
     QString batPath;
     batPath.append(workPath).append("3_check_key.bat");
-    RunSysCmd runCmd;
-    runCmd.callBatScript(batPath);
+    RunSysCmdThread runCmd(batPath);
+    runCmd.start();
     // file watcher
     //QString checkKeyResultPath;
     //checkKeyResultPath.append(workPath).append("logCheckKeySuccess.txt");
@@ -529,8 +536,8 @@ void Nfc::getFreeSpaceBtnClick() {
     workPath.append(jcshellDirPath).append("/batForTools/");
     QString batPath;
     batPath.append(workPath).append("4_get_free_space.bat");
-    RunSysCmd runCmd;
-    runCmd.callBatScript(batPath);
+    RunSysCmdThread runCmd(batPath);
+    runCmd.start();
     // file watcher
     fileWatcher->connect(fileWatcher, SIGNAL(directoryChanged(QString)), this, SLOT(batGetFreeSpaceSuccess()));
     //fileWatcher->connect(fileWatcher, SIGNAL(fileChanged(QString)), this, SLOT(batOperateSuccess(QString)));
@@ -602,7 +609,25 @@ void Nfc::batGetFreeSpaceSuccess() {
         getFreeSpaceResultFile.remove();
         getFreeSpaceResultFile.close();
     }
+}
 
+/**
+ * @brief Nfc::formatEseBtnClick
+ */
+void Nfc::formatEseBtnClick() {
+    QString content("特别提醒:\n\n1.清空SE操作是一个危险操作，频繁操作可能会导致SE被锁死；\n2.清空SE会删除手表上的卡，请仅在需要时使用；\n3.点击“Yes”后请在手表上操作第63项，\n4.手表端操作完成后，需要联系服务器清除SE；\n5.第3,4步都成功才算清除成功。");
+    QMessageBox::StandardButton result = QMessageBox::warning(this, QString::fromUtf8("清空SE"), content, QMessageBox::Yes|QMessageBox::No);
+    if (result == QMessageBox::Yes) {
+        //5_format_se.bat中的语句全为调用次级vbs脚本，再由vbs调用子bat脚本，从而达到隐藏窗口的目的
+        showLog(QString::fromUtf8("请转到手表上进行操作第63项，如果手表没有切换到测试页面，请点击“清空SE”按钮重试。"));
+
+        QString workPath;
+        workPath.append(jcshellDirPath).append("/batForTools/");
+        QString batPath;
+        batPath.append(workPath).append("5_format_se.bat");
+        RunSysCmdThread runCmd(batPath);
+        runCmd.start();
+    }
 }
 
 void Nfc::showBusy(const bool &busy) {
@@ -617,14 +642,6 @@ void Nfc::showBusy(const bool &busy) {
 }
 
 Nfc::~Nfc() {
-    if (cpBatFileThread) {
-        delete cpBatFileThread;
-        cpBatFileThread= nullptr;
-    }
-    if (cpJcshellThread) {
-        delete cpJcshellThread;
-        cpJcshellThread= nullptr;
-    }
     delete progressBar;
     delete fileWatcher;
     delete serverAuthKeyPathBtn;
@@ -634,6 +651,7 @@ Nfc::~Nfc() {
     delete writeAuthKeyBtn;
     delete checkAuthKeyBtn;
     delete getFreeSpaceBtn;
+    delete formatEseBtn;
     delete serverAuthKeyPathLayout;
     delete operBtnsLayout;
     delete mainLayout;

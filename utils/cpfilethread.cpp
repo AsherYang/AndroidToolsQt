@@ -3,7 +3,6 @@
 #include <QDebug>
 #include "fileutil.h"
 
-/*
 CpFilethread::CpFilethread(const QString &srcDir, const QString &destDir, const QStringList &fileNameList) :
     isCopyFile(true),
     isCopyDir(false),
@@ -13,7 +12,7 @@ CpFilethread::CpFilethread(const QString &srcDir, const QString &destDir, const 
     qDestDir = destDir;
     qFilePathList = fileNameList;
 }
-*/
+
 CpFilethread::CpFilethread(const QString &srcDir, const QString &destDir, const bool &coverFileIfExist) :
     isCopyFile(false),
     isCopyDir(true),

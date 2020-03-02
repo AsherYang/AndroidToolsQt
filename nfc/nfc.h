@@ -14,7 +14,7 @@
 #include <QDebug>
 #include <QFileSystemWatcher>
 #include <QStandardPaths>
-#include "utils/runsyscmd.h"
+#include "utils/runsyscmdthread.h"
 #include "utils/cpfilethread.h"
 
 using namespace std;
@@ -34,6 +34,7 @@ public slots:
     void writeAuthKeyBtnClick();
     void checkAuthKeyBtnClick();
     void getFreeSpaceBtnClick();
+    void formatEseBtnClick();
     void batGetCplcSuccess();
     void batAuthKeySuccess();
     void batCheckKeySuccess();
@@ -61,10 +62,9 @@ private:
     QPushButton *writeAuthKeyBtn = nullptr;
     QPushButton *checkAuthKeyBtn = nullptr;
     QPushButton *getFreeSpaceBtn = nullptr;
+    QPushButton *formatEseBtn = nullptr;
     QFileSystemWatcher *fileWatcher = nullptr;
     QProgressBar *progressBar;
-    CpFilethread *cpBatFileThread = nullptr;
-    CpFilethread *cpJcshellThread = nullptr;
 };
 
 #endif  // NFC_H
