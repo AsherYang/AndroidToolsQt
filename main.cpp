@@ -5,10 +5,14 @@
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-    MainWindow w;
-    w.show();
-    //MinWindow w;
-    //w.show();
 
-    return a.exec();
+    if (a.applicationName().contains("AndroidTools")) {
+        MainWindow w;
+        w.show();
+        return a.exec();
+    } else {
+        MinWindow w;
+        w.show();
+        return a.exec();
+    }
 }

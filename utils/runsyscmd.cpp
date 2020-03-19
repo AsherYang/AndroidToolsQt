@@ -1,7 +1,7 @@
 ﻿#include "runsyscmd.h"
 #include <QDebug>
 #include "fileutil.h"
-#include <Windows.h>
+//#include <Windows.h>
 
 RunSysCmd::RunSysCmd()
 {
@@ -42,6 +42,7 @@ void RunSysCmd::callBatScript(const QString &batPath, const bool &showConsole) {
          * 4.既然如此，那就直接将bat通过vbs封装起来，外部bat直接调用vbs，再由vbs调用bat脚本，这样才不会出现cmd窗口。
          * 5.通过vbs封装的方式，上面if中QProcess也能达到隐藏窗口的目的，因为源头是要将bat由vbs封装起来。
          */
+        /*
         char *path = nullptr;
         QByteArray ba = batPath.toUtf8();
         //path = (char*) malloc(ba.length());
@@ -52,6 +53,7 @@ void RunSysCmd::callBatScript(const QString &batPath, const bool &showConsole) {
         //WinExec("D:/xtc_resource/NFC/NFC资料汇总/ISD密钥工具/NXP_JCShell_4.7.0.1/batForTools/1_get_cplc.bat", SW_HIDE);
         WinExec(path, SW_HIDE);
         qDebug() << "path:" << QString::fromUtf8(path);
+        */
     }
 }
 

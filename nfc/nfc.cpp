@@ -60,7 +60,8 @@ void Nfc::initUi() {
     QSizePolicy policy = logEdit->sizePolicy();
     policy.setVerticalStretch(1);
     logEdit->setSizePolicy(policy);
-    logEdit->setPlaceholderText(QString::fromUtf8("1.请先确认手表是否支持NFC，并且是Userdebug版本，\n2.从服务器获取测试密钥文件，\n3.确保手表连接稳定。"));
+    logEdit->setPlaceholderText(QString::fromUtf8("1.请先确认手表是否支持NFC，并且是Userdebug版本，\n2.写入密钥前，需先从服务器获取测试密钥文件，\n3.确保手表连接稳定，\n4.确保电脑adb环境配置正确，"
+                                                  "\n5.确保本程序没有安装在含有空格或其特殊字符的目录下。"));
     // progress bar hidden.
     showBusy(false);
 
@@ -266,15 +267,30 @@ void Nfc::writeAuthKeyBtnClick() {
             if (dek.indexOf(reDek) != -1) {
                 dek = reDek.cap(1);
             }
-            //qDebug() << "enc:" << enc;
-            //qDebug() << "mac:" << mac;
-            //qDebug() << "dek:" << dek;
+            // qDebug() << "enc:" << enc;
+            // qDebug() << "mac:" << mac;
+            // qDebug() << "dek:" << dek;
             break;
         }
     }
 
     if (enc.isEmpty() || mac.isEmpty() || dek.isEmpty()) {
         showLog(QString::fromUtf8("密钥提取失败，请检查密钥文件"));
+        showBusy(false);
+        serverAuthKeyFile.close();
+        return;
+    }
+
+    enc.replace(QString("\n"), QString("")).replace(QString(" "), QString(""));
+    mac.replace(QString("\n"), QString("")).replace(QString(" "), QString(""));
+    dek.replace(QString("\n"), QString("")).replace(QString(" "), QString(""));
+
+    //qDebug() << "enc:" << enc << " ,len:" << enc.length();
+    //qDebug() << "mac:" << mac << " ,len:" << mac.length();
+    //qDebug() << "dek:" << dek << " ,len:" << dek.length();
+
+    if (enc.length() != 32 || mac.length() != 32 || dek.length() != 32) {
+        showLog(QString::fromUtf8("密钥错误，请检查密钥文件"));
         showBusy(false);
         serverAuthKeyFile.close();
         return;
@@ -615,11 +631,11 @@ void Nfc::batGetFreeSpaceSuccess() {
  * @brief Nfc::formatEseBtnClick
  */
 void Nfc::formatEseBtnClick() {
-    QString content("特别提醒:\n\n1.清空SE操作是一个危险操作，频繁操作可能会导致SE被锁死；\n2.清空SE会删除手表上的卡，请仅在需要时使用；\n3.点击“Yes”后请在手表上操作第63项，\n4.手表端操作完成后，需要联系服务器清除SE；\n5.第3,4步都成功才算清除成功。");
+    QString content("特别提醒:\n\n1.清空SE是一个危险操作，频繁操作可能会导致SE被锁死；\n2.清空SE会删除手表上的卡，请仅在需要时使用；\n3.点击“Yes”后请在手表上操作第65项，\n4.手表端操作完成后，需要联系服务器清除SE；\n5.第3,4步都成功才算清除成功。");
     QMessageBox::StandardButton result = QMessageBox::warning(this, QString::fromUtf8("清空SE"), content, QMessageBox::Yes|QMessageBox::No);
     if (result == QMessageBox::Yes) {
         //5_format_se.bat中的语句全为调用次级vbs脚本，再由vbs调用子bat脚本，从而达到隐藏窗口的目的
-        showLog(QString::fromUtf8("请转到手表上进行操作第63项，如果手表没有切换到测试页面，请点击“清空SE”按钮重试。"));
+        showLog(QString::fromUtf8("请转到手表上进行操作第65项，如果手表没有切换到测试页面，请点击“清空SE”按钮重试。"));
 
         QString workPath;
         workPath.append(jcshellDirPath).append("/batForTools/");

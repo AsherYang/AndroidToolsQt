@@ -8,11 +8,16 @@ QT       += core gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-# AndroidTools For me(main.cpp use MainWindow.cpp)
-TARGET = AndroidTools
+DEFINES += isAndroidTools
 
-# NfcTools For others(main.cpp use MinWindow.cpp)
-#TARGET = NfcTools
+contains(DEFINES, isAndroidTools) {
+    # AndroidTools For me(main.cpp use MainWindow.cpp)
+    TARGET = AndroidTools
+} else {
+    # NfcTools For others(main.cpp use MinWindow.cpp)
+    TARGET = NfcTools
+}
+
 TEMPLATE = app
 
 # The following define makes your compiler emit warnings if you use
@@ -28,7 +33,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 CONFIG += c++11
 
-LIBS += User32.LIB
+#LIBS += User32.LIB
 
 SOURCES += \
         main.cpp \
@@ -49,7 +54,8 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 DISTFILES += \
     README.md \
-    copy.bat
+    copy.bat \
+    copyfolder.bat
 
 RC_ICONS = logo.ico
 
